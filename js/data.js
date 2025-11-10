@@ -97,7 +97,7 @@ function initializeData() {
                 content: ''
             },
             about: {
-                content: 'At Lane & Key Properties, we understand that buying or selling a home is one of the most important decisions you\'ll ever make.'
+                content: 'Lane & Key Properties is owned by Latosha Lane, a retired U.S. veteran who brings the same dedication, discipline, and heart she had in service into providing clean, comfortable homes. With a soft spot for her six maltipoos and a sense of humor to match, she focuses on safe, well-maintained rentals and responsive communication for every tenant.'
             }
         };
         localStorage.setItem(DATA_KEYS.PAGES, JSON.stringify(defaultPages));
