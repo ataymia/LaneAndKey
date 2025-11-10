@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Lane & Key Properties</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen">
+        <div class="login-container">
+            <h1>Admin Login</h1>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+                <div id="login-error" class="error-message" style="display: none;"></div>
+            </form>
+            <p class="login-hint">Default: admin / admin123</p>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="admin-panel" style="display: none;">
+        <nav class="navbar admin-nav">
+            <div class="container">
+                <div class="nav-brand">
+                    <a href="admin.html">Admin Panel</a>
+                </div>
+                <div class="nav-menu">
+                    <a href="index.html" class="nav-link" target="_blank">View Site</a>
+                    <button onclick="handleLogout()" class="btn btn-small">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="admin-content">
+            <div class="container">
+                <div class="admin-tabs">
+                    <button class="tab-btn active" onclick="showTab('listings')">Manage Listings</button>
+                    <button class="tab-btn" onclick="showTab('pages')">Edit Pages</button>
+                </div>
+
+                <!-- Listings Tab -->
+                <div id="tab-listings" class="tab-content active">
+                    <div class="admin-header">
+                        <h2>Manage Listings</h2>
+                        <button onclick="openListingForm()" class="btn">Add New Listing</button>
+                    </div>
+
+                    <div class="listings-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Address</th>
+                                    <th>Price</th>
+                                    <th>Beds/Baths</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-listings-table">
+                                <!-- Listings will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pages Tab -->
+                <div id="tab-pages" class="tab-content">
+                    <div class="admin-header">
+                        <h2>Edit Pages</h2>
+                    </div>
+
+                    <div class="pages-editor">
+                        <div class="form-group">
+                            <label>Select Page</label>
+                            <select id="page-select" onchange="loadPageContent()">
+                                <option value="home">Home Page</option>
+                                <option value="about">About Page</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Hero Title (Home Page Only)</label>
+                            <input type="text" id="page-hero-title" placeholder="Hero Title">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Hero Subtitle (Home Page Only)</label>
+                            <input type="text" id="page-hero-subtitle" placeholder="Hero Subtitle">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Main Content</label>
+                            <textarea id="page-content" rows="10"></textarea>
+                        </div>
+
+                        <button onclick="savePageContent()" class="btn">Save Changes</button>
+                        <div id="page-save-success" class="success-message" style="display: none;">
+                            Page saved successfully!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Listing Form Modal -->
+    <div id="listing-modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeListingForm()">&times;</span>
+            <h2 id="listing-form-title">Add New Listing</h2>
+            <form id="listing-form" onsubmit="saveListing(event)">
+                <input type="hidden" id="listing-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Address *</label>
+                        <input type="text" id="listing-address" required>
+                    </div>
+                    <div class="form-group">
+                        <label>City *</label>
+                        <input type="text" id="listing-city" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Price *</label>
+                        <input type="number" id="listing-price" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Property Type *</label>
+                        <select id="listing-type" required>
+                            <option value="single-family">Single Family</option>
+                            <option value="condo">Condo</option>
+                            <option value="townhouse">Townhouse</option>
+                            <option value="multi-family">Multi-Family</option>
+                            <option value="land">Land</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Bedrooms *</label>
+                        <input type="number" id="listing-beds" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Bathrooms *</label>
+                        <input type="number" id="listing-baths" required min="0" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Square Feet *</label>
+                        <input type="number" id="listing-sqft" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Year Built *</label>
+                        <input type="number" id="listing-year" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description *</label>
+                    <textarea id="listing-description" rows="4" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Latitude (for map)</label>
+                    <input type="number" id="listing-lat" step="0.000001">
+                </div>
+
+                <div class="form-group">
+                    <label>Longitude (for map)</label>
+                    <input type="number" id="listing-lng" step="0.000001">
+                </div>
+
+                <div class="form-group">
+                    <label>Photo URLs (one per line)</label>
+                    <textarea id="listing-photos" rows="4" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+                    <small>Upload photos to an image hosting service and paste URLs here</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="listing-published" checked>
+                        Published (visible on website)
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn">Save Listing</button>
+                    <button type="button" onclick="closeListingForm()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
