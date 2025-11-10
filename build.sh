@@ -26,8 +26,9 @@ async function loadRemoteConfig() {
 EOF
     echo "Credentials injected successfully"
 else
-    echo "Warning: ADMIN_USERNAME and ADMIN_PASSWORD not set. Using defaults."
-    echo "Set these in Cloudflare Pages Environment Variables for production."
+    echo "Warning: ADMIN_USERNAME and ADMIN_PASSWORD not set."
+    echo "For production, set ADMIN_USERNAME=Latosha and ADMIN_PASSWORD=Ataymia!0"
+    echo "in Cloudflare Pages Environment Variables."
 fi
 
 echo "Build complete!"

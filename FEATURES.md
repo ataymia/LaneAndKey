@@ -221,10 +221,16 @@ All listings include:
 ## Getting Started
 
 1. Clone the repository
-2. Open `index.html` in a browser
-3. Navigate to `/admin.html` to access the admin panel
-4. Login with default credentials (admin/admin123)
-5. Add, edit, or manage listings
-6. View changes on the public pages
+2. Set environment variables and run build.sh:
+   ```bash
+   export ADMIN_USERNAME=Latosha
+   export ADMIN_PASSWORD='Ataymia!0'
+   bash build.sh
+   ```
+3. Open `index.html` in a browser
+4. Navigate to `/admin.html` to access the admin panel
+5. Login with the configured credentials
+6. Add, edit, or manage listings
+7. View changes on the public pages
 
 For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
