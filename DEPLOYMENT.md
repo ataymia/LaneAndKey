@@ -38,12 +38,12 @@ After the initial deployment:
 
    ```
    Variable name: ADMIN_USERNAME
-   Value: [your-chosen-username]
+   Value: Latosha
    ```
 
    ```
    Variable name: ADMIN_PASSWORD
-   Value: [your-secure-password]
+   Value: Ataymia!0
    ```
 
 4. Click **Save**
@@ -70,16 +70,21 @@ The build script will now inject your secure credentials into the config file du
 ### DON'T ❌
 - Don't commit production passwords to the repository
 - Don't share admin credentials publicly
-- Don't use the default credentials (admin/admin123) in production
-- Don't store credentials in client-side code without using environment variables
+- Don't store credentials directly in client-side code without using environment variables during build
+- Don't use placeholder values in production
 
 ## Local Development
 
-For local development, the default credentials are:
-- Username: `admin`
-- Password: `admin123`
+For local development without environment variables set, authentication will not work. 
+You must set the environment variables locally:
 
-These are only for local testing and should NEVER be used in production.
+```bash
+export ADMIN_USERNAME=Latosha
+export ADMIN_PASSWORD='Ataymia!0'
+bash build.sh
+```
+
+Then open the site locally to test admin login.
 
 ## Environment-Specific Variables
 
@@ -105,13 +110,17 @@ After deployment:
 
 1. Visit your site at `https://[your-project].pages.dev`
 2. Navigate to `/admin.html`
-3. Try logging in with your new credentials
-4. Verify that default credentials (admin/admin123) do NOT work
+3. Try logging in with:
+   - Username: Latosha
+   - Password: Ataymia!0
+4. Verify that you can access the admin panel
 
 ## Troubleshooting
 
 ### Admin login not working after deployment
 - Check that environment variables are set correctly in Cloudflare dashboard
+  - ADMIN_USERNAME should be: Latosha
+  - ADMIN_PASSWORD should be: Ataymia!0
 - Verify the build script ran successfully (check build logs)
 - Try redeploying after setting environment variables
 - Clear browser cache and localStorage
@@ -125,6 +134,7 @@ After deployment:
 - Ensure you clicked "Save" after adding environment variables
 - Make sure you triggered a new deployment after adding variables
 - Check that variable names match exactly: `ADMIN_USERNAME` and `ADMIN_PASSWORD`
+- Verify values are set to: Latosha and Ataymia!0
 
 ## Alternative: Using Cloudflare Workers
 

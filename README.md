@@ -18,7 +18,7 @@ A modern, responsive real estate website built with vanilla HTML, CSS, and JavaS
 - "Looking to Sell" form modal
 
 ### Admin Panel
-- Secure login system (demo: username: `admin`, password: `admin123`)
+- Secure login system with environment variable-based authentication
 - Create, edit, and delete listings
 - Publish/unpublish toggle for listings
 - Edit page content (Home and About pages)
@@ -105,7 +105,7 @@ LaneAndKey/
 
 ### For Administrators
 1. Navigate to `/admin.html`
-2. Login with credentials (default: admin/admin123)
+2. Login with configured credentials (see DEPLOYMENT.md for setup)
 3. Manage listings:
    - Add new listings with all property details
    - Edit existing listings
@@ -126,7 +126,7 @@ The application uses browser localStorage to store:
 
 ### Admin Portal Password Protection
 The admin portal uses environment variables for secure credential management:
-- **Local Development**: Default credentials (admin/admin123)
+- **Local Development**: Set ADMIN_USERNAME and ADMIN_PASSWORD environment variables before running build.sh
 - **Production**: Credentials injected from Cloudflare Pages environment variables
 
 ### Deployment Security
@@ -136,11 +136,9 @@ The admin portal uses environment variables for secure credential management:
 4. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed security setup instructions
 
 ### Production Deployment Checklist
-- [ ] Set `ADMIN_USERNAME` environment variable in Cloudflare Pages
-- [ ] Set `ADMIN_PASSWORD` environment variable in Cloudflare Pages  
-- [ ] Use a strong, unique password (not the default)
-- [ ] Test admin login after deployment
-- [ ] Verify default credentials do not work in production
+- [ ] Set `ADMIN_USERNAME` environment variable in Cloudflare Pages (value: Latosha)
+- [ ] Set `ADMIN_PASSWORD` environment variable in Cloudflare Pages (value: Ataymia!0)
+- [ ] Test admin login after deployment with the configured credentials
 
 ### Additional Security Recommendations
 - For production use, consider implementing proper server-side authentication
