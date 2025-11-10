@@ -19,8 +19,12 @@ function submitContactForm(event) {
             // Hide form and show success message
             form.style.display = 'none';
             const successMessage = document.getElementById('contact-success');
+            const errorMessage = document.getElementById('contact-error');
             if (successMessage) {
                 successMessage.style.display = 'block';
+            }
+            if (errorMessage) {
+                errorMessage.style.display = 'none';
             }
             
             // Reset and show form again after 5 seconds
@@ -35,7 +39,23 @@ function submitContactForm(event) {
             }, 5000);
         }, function(error) {
             console.error('Failed to send email:', error);
-            alert('Sorry, there was an error sending your message. Please try again or contact us directly at laneandkey@gmail.com');
+            
+            // Show error message
+            const successMessage = document.getElementById('contact-success');
+            const errorMessage = document.getElementById('contact-error');
+            if (successMessage) {
+                successMessage.style.display = 'none';
+            }
+            if (errorMessage) {
+                errorMessage.style.display = 'block';
+            }
+            
+            // Hide error message after 5 seconds
+            setTimeout(() => {
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            }, 5000);
             
             // Re-enable button
             submitButton.disabled = false;
