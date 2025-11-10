@@ -123,10 +123,31 @@ The application uses browser localStorage to store:
 **Note**: For production use, you should implement a proper backend with a database. The current localStorage implementation is for demonstration purposes.
 
 ## Security Notes
-- The current authentication system is for demonstration only
-- For production deployment, implement proper server-side authentication
-- Use environment variables for sensitive credentials
-- Consider implementing a proper backend API
+
+### Admin Portal Password Protection
+The admin portal uses environment variables for secure credential management:
+- **Local Development**: Default credentials (admin/admin123)
+- **Production**: Credentials injected from Cloudflare Pages environment variables
+
+### Deployment Security
+1. **NEVER commit production passwords** to the repository
+2. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` as environment variables in Cloudflare Pages
+3. The build script (`build.sh`) automatically injects these credentials during deployment
+4. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed security setup instructions
+
+### Production Deployment Checklist
+- [ ] Set `ADMIN_USERNAME` environment variable in Cloudflare Pages
+- [ ] Set `ADMIN_PASSWORD` environment variable in Cloudflare Pages  
+- [ ] Use a strong, unique password (not the default)
+- [ ] Test admin login after deployment
+- [ ] Verify default credentials do not work in production
+
+### Additional Security Recommendations
+- For production use, consider implementing proper server-side authentication
+- Add rate limiting for login attempts
+- Implement session timeout
+- Use HTTPS only (Cloudflare Pages provides this automatically)
+- Consider implementing 2FA for admin access
 
 ## Browser Compatibility
 - Chrome (latest)

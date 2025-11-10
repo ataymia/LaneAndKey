@@ -18,6 +18,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initMap() {
     // Initialize Leaflet map (free alternative to Google Maps)
+    // Check if Leaflet is available
+    if (typeof L === 'undefined') {
+        console.warn('Leaflet library not loaded. Map functionality will be limited.');
+        document.getElementById('map').innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #CCD5FF; color: #666;">Map view requires internet connection to load map tiles.</div>';
+        return;
+    }
+    
     map = L.map('map').setView([39.7817, -89.6501], 11);
     
     // Add OpenStreetMap tiles
@@ -35,33 +42,36 @@ function loadListings(listings = null) {
     currentListings = listings;
     updateResultsCount(listings.length);
     
-    // Clear existing markers
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
-    
-    // Add markers to map
-    listings.forEach(listing => {
-        if (listing.lat && listing.lng) {
-            const marker = L.marker([listing.lat, listing.lng]).addTo(map);
-            
-            const popupContent = `
-                <div style="min-width: 200px;">
-                    <strong>${formatPrice(listing.price)}</strong><br>
-                    ${listing.address}<br>
-                    ${listing.beds} beds | ${listing.baths} baths<br>
-                    <button onclick="viewListing('${listing.id}')" style="margin-top: 8px; padding: 4px 12px; background: #9BAAFF; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
-                </div>
-            `;
-            
-            marker.bindPopup(popupContent);
-            markers.push(marker);
+    // Only update map if Leaflet is available
+    if (typeof L !== 'undefined' && map) {
+        // Clear existing markers
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+        
+        // Add markers to map
+        listings.forEach(listing => {
+            if (listing.lat && listing.lng) {
+                const marker = L.marker([listing.lat, listing.lng]).addTo(map);
+                
+                const popupContent = `
+                    <div style="min-width: 200px;">
+                        <strong>${formatPrice(listing.price)}</strong><br>
+                        ${listing.address}<br>
+                        ${listing.beds} beds | ${listing.baths} baths<br>
+                        <button onclick="viewListing('${listing.id}')" style="margin-top: 8px; padding: 4px 12px; background: #9BAAFF; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                markers.push(marker);
+            }
+        });
+        
+        // Fit map to show all markers
+        if (markers.length > 0) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1));
         }
-    });
-    
-    // Fit map to show all markers
-    if (markers.length > 0) {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.1));
     }
     
     // Update grid view
@@ -91,8 +101,10 @@ function showMapView() {
     document.getElementById('map-view-btn').classList.add('active');
     document.getElementById('grid-view-btn').classList.remove('active');
     
-    // Refresh map
-    setTimeout(() => map.invalidateSize(), 100);
+    // Refresh map if available
+    if (typeof L !== 'undefined' && map) {
+        setTimeout(() => map.invalidateSize(), 100);
+    }
 }
 
 function showGridView() {

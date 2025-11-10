@@ -171,8 +171,8 @@ function checkAuth() {
 }
 
 function login(username, password) {
-    // Simple demo authentication
-    if (username === 'admin' && password === 'admin123') {
+    // Authentication using config (which can use Cloudflare secrets)
+    if (typeof validateCredentials === 'function' && validateCredentials(username, password)) {
         localStorage.setItem(DATA_KEYS.AUTH, 'authenticated');
         return true;
     }

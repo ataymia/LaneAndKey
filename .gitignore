@@ -3,5 +3,10 @@ dist/
 .DS_Store
 *.log
 .env
+.env.local
+.env.production
 .vscode/
 .idea/
+# Don't commit config files with production credentials
+js/config.production.js
+*.secret
