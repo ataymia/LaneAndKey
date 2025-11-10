@@ -37,12 +37,9 @@ function createListingCard(listing) {
     `;
 }
 
-// View listing details (for now, just show alert - could be expanded to detail page)
+// View listing details - navigate to listing detail page
 function viewListing(id) {
-    const listing = getListingById(id);
-    if (listing) {
-        alert(`${listing.address}\n\n${formatPrice(listing.price)}\n${listing.beds} beds | ${listing.baths} baths | ${formatNumber(listing.sqft)} sqft\n\n${listing.description}`);
-    }
+    window.location.href = `listing.html?id=${id}`;
 }
 
 // Global search functionality
