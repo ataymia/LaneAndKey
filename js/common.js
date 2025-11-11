@@ -91,15 +91,23 @@ function submitSellForm(event) {
     
     const form = event.target;
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
+    const inquiry = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        address: formData.get('address'),
+        propertyType: formData.get('propertyType'),
+        message: formData.get('message')
+    };
     
-    // In a real application, this would send data to a server
-    console.log('Sell form submitted:', data);
-    
-    // Show success message
-    alert('Thank you for your interest! We\'ll contact you soon to discuss selling your property.');
-    
-    closeSellForm();
+    try {
+        saveSellInquiry(inquiry);
+        alert('Thank you for your interest! We\'ll contact you soon to discuss selling your property.');
+        closeSellForm();
+    } catch (error) {
+        console.error('Failed to save sell inquiry:', error);
+        alert('Sorry, there was an error submitting your inquiry. Please try again.');
+    }
 }
 
 // Close modal when clicking outside

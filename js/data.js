@@ -2,7 +2,11 @@
 const DATA_KEYS = {
     LISTINGS: 'lanekey_listings',
     PAGES: 'lanekey_pages',
-    AUTH: 'lanekey_auth'
+    AUTH: 'lanekey_auth',
+    CONTACT_SUBMISSIONS: 'lanekey_contact_submissions',
+    VIEWING_REQUESTS: 'lanekey_viewing_requests',
+    SELL_INQUIRIES: 'lanekey_sell_inquiries',
+    SITE_SETTINGS: 'lanekey_site_settings'
 };
 
 // Initialize with sample data if needed
@@ -245,6 +249,122 @@ function filterListings(filters) {
     }
     
     return listings;
+}
+
+// Submissions CRUD operations
+function saveContactSubmission(submission) {
+    const submissions = getContactSubmissions();
+    submission.id = Date.now().toString();
+    submission.date = new Date().toISOString();
+    submission.status = 'new';
+    submissions.unshift(submission);
+    localStorage.setItem(DATA_KEYS.CONTACT_SUBMISSIONS, JSON.stringify(submissions));
+    return submission;
+}
+
+function getContactSubmissions() {
+    const data = localStorage.getItem(DATA_KEYS.CONTACT_SUBMISSIONS);
+    return data ? JSON.parse(data) : [];
+}
+
+function deleteContactSubmission(id) {
+    const submissions = getContactSubmissions();
+    const filtered = submissions.filter(s => s.id !== id);
+    localStorage.setItem(DATA_KEYS.CONTACT_SUBMISSIONS, JSON.stringify(filtered));
+}
+
+function updateContactSubmissionStatus(id, status) {
+    const submissions = getContactSubmissions();
+    const submission = submissions.find(s => s.id === id);
+    if (submission) {
+        submission.status = status;
+        localStorage.setItem(DATA_KEYS.CONTACT_SUBMISSIONS, JSON.stringify(submissions));
+    }
+}
+
+function saveViewingRequest(request) {
+    const requests = getViewingRequests();
+    request.id = Date.now().toString();
+    request.date = new Date().toISOString();
+    request.status = 'new';
+    requests.unshift(request);
+    localStorage.setItem(DATA_KEYS.VIEWING_REQUESTS, JSON.stringify(requests));
+    return request;
+}
+
+function getViewingRequests() {
+    const data = localStorage.getItem(DATA_KEYS.VIEWING_REQUESTS);
+    return data ? JSON.parse(data) : [];
+}
+
+function deleteViewingRequest(id) {
+    const requests = getViewingRequests();
+    const filtered = requests.filter(r => r.id !== id);
+    localStorage.setItem(DATA_KEYS.VIEWING_REQUESTS, JSON.stringify(filtered));
+}
+
+function updateViewingRequestStatus(id, status) {
+    const requests = getViewingRequests();
+    const request = requests.find(r => r.id === id);
+    if (request) {
+        request.status = status;
+        localStorage.setItem(DATA_KEYS.VIEWING_REQUESTS, JSON.stringify(requests));
+    }
+}
+
+function saveSellInquiry(inquiry) {
+    const inquiries = getSellInquiries();
+    inquiry.id = Date.now().toString();
+    inquiry.date = new Date().toISOString();
+    inquiry.status = 'new';
+    inquiries.unshift(inquiry);
+    localStorage.setItem(DATA_KEYS.SELL_INQUIRIES, JSON.stringify(inquiries));
+    return inquiry;
+}
+
+function getSellInquiries() {
+    const data = localStorage.getItem(DATA_KEYS.SELL_INQUIRIES);
+    return data ? JSON.parse(data) : [];
+}
+
+function deleteSellInquiry(id) {
+    const inquiries = getSellInquiries();
+    const filtered = inquiries.filter(i => i.id !== id);
+    localStorage.setItem(DATA_KEYS.SELL_INQUIRIES, JSON.stringify(filtered));
+}
+
+function updateSellInquiryStatus(id, status) {
+    const inquiries = getSellInquiries();
+    const inquiry = inquiries.find(i => i.id === id);
+    if (inquiry) {
+        inquiry.status = status;
+        localStorage.setItem(DATA_KEYS.SELL_INQUIRIES, JSON.stringify(inquiries));
+    }
+}
+
+// Site Settings operations
+function getSiteSettings() {
+    const data = localStorage.getItem(DATA_KEYS.SITE_SETTINGS);
+    if (!data) {
+        const defaultSettings = {
+            siteName: 'Lane & Key Properties',
+            tagline: 'Every Lane leads you home.',
+            email: 'laneandkey@gmail.com',
+            phone: '(623) 340-9861',
+            officeHours: {
+                weekday: 'Monday - Friday: 9:00 AM - 6:00 PM',
+                saturday: 'Saturday: 10:00 AM - 4:00 PM',
+                sunday: 'Sunday: By Appointment'
+            }
+        };
+        localStorage.setItem(DATA_KEYS.SITE_SETTINGS, JSON.stringify(defaultSettings));
+        return defaultSettings;
+    }
+    return JSON.parse(data);
+}
+
+function saveSiteSettings(settings) {
+    localStorage.setItem(DATA_KEYS.SITE_SETTINGS, JSON.stringify(settings));
 }
 
 // Initialize data on load
