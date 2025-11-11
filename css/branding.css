@@ -1,0 +1,87 @@
+/* Branding overrides for Lane & Key Properties */
+
+:root {
+  --brand-blue: #3b66b5;
+  --brand-blue-strong: #2f4e93;
+  --brand-accent: #ffffff;
+  --brand-text: #23304a;
+}
+
+.brand-logo {
+  height: 48px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.footer-logo {
+  height: 40px;
+  width: auto;
+  margin-bottom: 8px;
+}
+
+.navbar {
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.0));
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.btn {
+  background-color: var(--brand-blue);
+  color: var(--brand-accent);
+  border: 0;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background-color: var(--brand-blue-strong);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--brand-blue);
+  border: 2px solid var(--brand-blue);
+}
+
+.btn-secondary:hover {
+  background-color: var(--brand-blue);
+  color: var(--brand-accent);
+}
+
+a {
+  color: var(--brand-blue);
+}
+
+a:hover {
+  color: var(--brand-blue-strong);
+}
+
+h1, h2, h3, h4 {
+  color: var(--brand-text);
+}
+
+.hero {
+  background: linear-gradient(180deg, rgba(59,102,181,0.04) 0%, rgba(255,255,255,0) 100%);
+}
+
+.footer {
+  background-color: #fafbfd;
+  color: #333;
+  padding-top: 1.5rem;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .brand-logo {
+    height: 36px;
+  }
+  .footer-logo {
+    height: 32px;
+  }
+}
