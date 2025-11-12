@@ -125,27 +125,36 @@ The application uses browser localStorage to store:
 ## Security Notes
 
 ### Admin Portal Password Protection
-The admin portal uses environment variables for secure credential management:
-- **Local Development**: Set ADMIN_USERNAME and ADMIN_PASSWORD environment variables before running build.sh
-- **Production**: Credentials injected from Cloudflare Pages environment variables
+The admin portal uses **secure server-side authentication** via Cloudflare Pages Functions:
+- Authentication is handled at runtime by the `/api/admin-auth` endpoint
+- **No credentials are exposed in client-side JavaScript**
+- Credentials are stored securely as environment variables in Cloudflare Pages
+- All authentication logic runs server-side only
 
 ### Deployment Security
 1. **NEVER commit production passwords** to the repository
-2. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` as environment variables in Cloudflare Pages
-3. The build script (`build.sh`) automatically injects these credentials during deployment
+2. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` as environment variables in Cloudflare Pages dashboard
+3. Credentials are validated server-side by the Cloudflare Pages Function at `/functions/api/admin-auth.js`
 4. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed security setup instructions
 
 ### Production Deployment Checklist
-- [ ] Set `ADMIN_USERNAME` environment variable in Cloudflare Pages (value: Latosha)
-- [ ] Set `ADMIN_PASSWORD` environment variable in Cloudflare Pages (value: Ataymia!0)
+- [ ] Set `ADMIN_USERNAME` environment variable in Cloudflare Pages (recommended: Latosha)
+- [ ] Set `ADMIN_PASSWORD` environment variable in Cloudflare Pages (recommended: Ataymia!0)
 - [ ] Test admin login after deployment with the configured credentials
+- [ ] Verify credentials are not visible in browser DevTools or page source
+
+### Security Features
+- ✅ Server-side credential validation
+- ✅ No credentials in shipped JavaScript
+- ✅ Environment variable-based configuration
+- ✅ HTTPS only (provided by Cloudflare Pages)
+- ✅ CORS protection for authentication endpoint
 
 ### Additional Security Recommendations
-- For production use, consider implementing proper server-side authentication
-- Add rate limiting for login attempts
+- Add rate limiting for login attempts (via Cloudflare WAF or Workers)
 - Implement session timeout
-- Use HTTPS only (Cloudflare Pages provides this automatically)
 - Consider implementing 2FA for admin access
+- Regularly rotate admin credentials
 
 ## Browser Compatibility
 - Chrome (latest)
