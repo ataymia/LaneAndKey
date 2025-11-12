@@ -7,18 +7,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('login-error');
+    const submitButton = event.target.querySelector('button[type="submit"]');
     
-    if (login(username, password)) {
-        showAdminPanel();
-    } else {
-        const errorDiv = document.getElementById('login-error');
-        errorDiv.textContent = 'Invalid username or password';
+    // Disable submit button and show loading state
+    submitButton.disabled = true;
+    submitButton.textContent = 'Signing in...';
+    errorDiv.style.display = 'none';
+    
+    try {
+        const success = await login(username, password);
+        
+        if (success) {
+            showAdminPanel();
+        } else {
+            errorDiv.textContent = 'Invalid username or password';
+            errorDiv.style.display = 'block';
+            submitButton.disabled = false;
+            submitButton.textContent = 'Sign In';
+        }
+    } catch (error) {
+        errorDiv.textContent = 'An error occurred. Please try again.';
         errorDiv.style.display = 'block';
+        submitButton.disabled = false;
+        submitButton.textContent = 'Sign In';
     }
 }
 

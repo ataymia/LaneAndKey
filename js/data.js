@@ -168,19 +168,35 @@ function savePageContent(page, content) {
     localStorage.setItem(DATA_KEYS.PAGES, JSON.stringify(data));
 }
 
-// Authentication (simple demonstration - not secure for production)
+// Authentication using server-side Cloudflare Pages Function
 function checkAuth() {
     const auth = localStorage.getItem(DATA_KEYS.AUTH);
     return auth === 'authenticated';
 }
 
-function login(username, password) {
-    // Authentication using config (which can use Cloudflare secrets)
-    if (typeof validateCredentials === 'function' && validateCredentials(username, password)) {
-        localStorage.setItem(DATA_KEYS.AUTH, 'authenticated');
-        return true;
+async function login(username, password) {
+    try {
+        // Call the server-side authentication endpoint
+        const response = await fetch(CONFIG.AUTH_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            localStorage.setItem(DATA_KEYS.AUTH, 'authenticated');
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Authentication error:', error);
+        return false;
     }
-    return false;
 }
 
 function logout() {
