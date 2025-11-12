@@ -3,24 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Lane & Key Properties</title>
+    <title>Admin Portal - Lane & Key Properties</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin-modern.css">
 </head>
 <body>
     <!-- Login Screen -->
     <div id="login-screen">
         <div class="login-container">
-            <h1>Admin Login</h1>
+            <img src="images/logo.png" alt="Lane & Key Properties" class="login-logo">
+            <h1>Admin Portal</h1>
             <form id="login-form" onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label>Username</label>
-                    <input type="text" id="username" required>
+                    <input type="text" id="username" required autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" id="password" required>
+                    <input type="password" id="password" required autocomplete="current-password">
                 </div>
-                <button type="submit" class="btn">Login</button>
+                <button type="submit" class="btn btn-primary">Sign In</button>
                 <div id="login-error" class="error-message" style="display: none;"></div>
             </form>
         </div>
@@ -28,117 +30,347 @@
 
     <!-- Admin Panel -->
     <div id="admin-panel" style="display: none;">
-        <nav class="navbar admin-nav">
-            <div class="container">
-                <div class="nav-brand">
-                    <a href="admin.html">Admin Panel</a>
+        <div class="admin-layout">
+            <!-- Sidebar -->
+            <aside class="admin-sidebar">
+                <div class="sidebar-header">
+                    <img src="images/logo.png" alt="Lane & Key Properties" class="sidebar-logo">
+                    <h2>Admin Portal</h2>
                 </div>
-                <div class="nav-menu">
-                    <a href="index.html" class="nav-link" target="_blank">View Site</a>
-                    <button onclick="handleLogout()" class="btn btn-small">Logout</button>
+                
+                <nav class="sidebar-nav">
+                    <a href="#dashboard" class="nav-item active" onclick="showAdminTab('dashboard')">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="#listings" class="nav-item" onclick="showAdminTab('listings')">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">Listings</span>
+                    </a>
+                    <a href="#contacts" class="nav-item" onclick="showAdminTab('contacts')">
+                        <span class="nav-icon">📧</span>
+                        <span class="nav-text">Contact Forms</span>
+                        <span class="badge" id="contacts-badge">0</span>
+                    </a>
+                    <a href="#viewings" class="nav-item" onclick="showAdminTab('viewings')">
+                        <span class="nav-icon">👁️</span>
+                        <span class="nav-text">Viewing Requests</span>
+                        <span class="badge" id="viewings-badge">0</span>
+                    </a>
+                    <a href="#sell-inquiries" class="nav-item" onclick="showAdminTab('sell-inquiries')">
+                        <span class="nav-icon">💰</span>
+                        <span class="nav-text">Sell Inquiries</span>
+                        <span class="badge" id="sell-badge">0</span>
+                    </a>
+                    <a href="#pages" class="nav-item" onclick="showAdminTab('pages')">
+                        <span class="nav-icon">📄</span>
+                        <span class="nav-text">Edit Pages</span>
+                    </a>
+                    <a href="#settings" class="nav-item" onclick="showAdminTab('settings')">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-text">Site Settings</span>
+                    </a>
+                </nav>
+                
+                <div class="sidebar-footer">
+                    <a href="index.html" target="_blank" class="btn btn-secondary btn-block">
+                        <span class="nav-icon">🌐</span> View Website
+                    </a>
+                    <button onclick="handleLogout()" class="btn btn-outline btn-block">
+                        <span class="nav-icon">🚪</span> Logout
+                    </button>
                 </div>
-            </div>
-        </nav>
+            </aside>
 
-        <div class="admin-content">
-            <div class="container">
-                <div class="admin-tabs">
-                    <button class="tab-btn active" onclick="showTab('listings')">Manage Listings</button>
-                    <button class="tab-btn" onclick="showTab('pages')">Edit Pages</button>
-                </div>
+            <!-- Main Content -->
+            <main class="admin-main">
+                <div class="admin-content">
+                    <!-- Dashboard Tab -->
+                    <div id="tab-dashboard" class="admin-tab active">
+                        <div class="page-header">
+                            <h1>Dashboard</h1>
+                            <p class="subtitle">Welcome to your control center</p>
+                        </div>
 
-                <!-- Listings Tab -->
-                <div id="tab-listings" class="tab-content active">
-                    <div class="admin-header">
-                        <h2>Manage Listings</h2>
-                        <button onclick="openListingForm()" class="btn">Add New Listing</button>
+                        <div class="dashboard-stats">
+                            <div class="stat-card">
+                                <div class="stat-icon">🏠</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="stat-listings">0</div>
+                                    <div class="stat-label">Total Listings</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">✅</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="stat-published">0</div>
+                                    <div class="stat-label">Published</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">📧</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="stat-contacts">0</div>
+                                    <div class="stat-label">New Contacts</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">👁️</div>
+                                <div class="stat-content">
+                                    <div class="stat-value" id="stat-viewings">0</div>
+                                    <div class="stat-label">Viewing Requests</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-sections">
+                            <div class="dashboard-section">
+                                <h2>Recent Activity</h2>
+                                <div id="recent-activity" class="activity-list">
+                                    <!-- Activity items will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="listings-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Address</th>
-                                    <th>Price</th>
-                                    <th>Beds/Baths</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="admin-listings-table">
-                                <!-- Listings will be loaded here -->
-                            </tbody>
-                        </table>
+                    <!-- Listings Tab -->
+                    <div id="tab-listings" class="admin-tab">
+                        <div class="page-header">
+                            <div>
+                                <h1>Manage Listings</h1>
+                                <p class="subtitle">Add, edit, or remove property listings</p>
+                            </div>
+                            <button onclick="openListingForm()" class="btn btn-primary">
+                                <span class="nav-icon">➕</span> Add New Listing
+                            </button>
+                        </div>
+
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Address</th>
+                                        <th>Price</th>
+                                        <th>Beds/Baths</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-listings-table">
+                                    <!-- Listings will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Contact Forms Tab -->
+                    <div id="tab-contacts" class="admin-tab">
+                        <div class="page-header">
+                            <h1>Contact Form Submissions</h1>
+                            <p class="subtitle">Review and manage contact inquiries</p>
+                        </div>
+
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Interest</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contacts-table">
+                                    <!-- Contact submissions will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Viewing Requests Tab -->
+                    <div id="tab-viewings" class="admin-tab">
+                        <div class="page-header">
+                            <h1>Viewing Requests</h1>
+                            <p class="subtitle">Schedule property viewings for interested buyers</p>
+                        </div>
+
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Property</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="viewings-table">
+                                    <!-- Viewing requests will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sell Inquiries Tab -->
+                    <div id="tab-sell-inquiries" class="admin-tab">
+                        <div class="page-header">
+                            <h1>Sell Property Inquiries</h1>
+                            <p class="subtitle">Manage requests from sellers</p>
+                        </div>
+
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Property Address</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sell-inquiries-table">
+                                    <!-- Sell inquiries will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Edit Pages Tab -->
+                    <div id="tab-pages" class="admin-tab">
+                        <div class="page-header">
+                            <h1>Edit Pages</h1>
+                            <p class="subtitle">Customize your website content</p>
+                        </div>
+
+                        <div class="form-card">
+                            <div class="form-group">
+                                <label>Select Page</label>
+                                <select id="page-select" onchange="loadPageContent()" class="form-control">
+                                    <option value="home">Home Page</option>
+                                    <option value="about">About Page</option>
+                                </select>
+                            </div>
+
+                            <div id="home-page-fields">
+                                <div class="form-group">
+                                    <label>Hero Title</label>
+                                    <input type="text" id="page-hero-title" class="form-control" placeholder="Hero Title">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Hero Subtitle</label>
+                                    <input type="text" id="page-hero-subtitle" class="form-control" placeholder="Hero Subtitle">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Main Content</label>
+                                <textarea id="page-content" rows="10" class="form-control"></textarea>
+                            </div>
+
+                            <button onclick="savePageContent()" class="btn btn-primary">Save Changes</button>
+                            <div id="page-save-success" class="success-message" style="display: none; margin-top: 1rem;">
+                                Page saved successfully!
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Site Settings Tab -->
+                    <div id="tab-settings" class="admin-tab">
+                        <div class="page-header">
+                            <h1>Site Settings</h1>
+                            <p class="subtitle">Configure global site information</p>
+                        </div>
+
+                        <div class="form-card">
+                            <h3>General Information</h3>
+                            <div class="form-group">
+                                <label>Site Name</label>
+                                <input type="text" id="settings-site-name" class="form-control">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Tagline</label>
+                                <input type="text" id="settings-tagline" class="form-control">
+                            </div>
+
+                            <h3 style="margin-top: 2rem;">Contact Information</h3>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input type="email" id="settings-email" class="form-control">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input type="tel" id="settings-phone" class="form-control">
+                            </div>
+
+                            <h3 style="margin-top: 2rem;">Office Hours</h3>
+                            <div class="form-group">
+                                <label>Weekday Hours</label>
+                                <input type="text" id="settings-hours-weekday" class="form-control" placeholder="Monday - Friday: 9:00 AM - 6:00 PM">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Saturday Hours</label>
+                                <input type="text" id="settings-hours-saturday" class="form-control" placeholder="Saturday: 10:00 AM - 4:00 PM">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Sunday Hours</label>
+                                <input type="text" id="settings-hours-sunday" class="form-control" placeholder="Sunday: By Appointment">
+                            </div>
+
+                            <button onclick="saveSiteSettingsForm()" class="btn btn-primary">Save Settings</button>
+                            <div id="settings-save-success" class="success-message" style="display: none; margin-top: 1rem;">
+                                Settings saved successfully!
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Pages Tab -->
-                <div id="tab-pages" class="tab-content">
-                    <div class="admin-header">
-                        <h2>Edit Pages</h2>
-                    </div>
-
-                    <div class="pages-editor">
-                        <div class="form-group">
-                            <label>Select Page</label>
-                            <select id="page-select" onchange="loadPageContent()">
-                                <option value="home">Home Page</option>
-                                <option value="about">About Page</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Hero Title (Home Page Only)</label>
-                            <input type="text" id="page-hero-title" placeholder="Hero Title">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Hero Subtitle (Home Page Only)</label>
-                            <input type="text" id="page-hero-subtitle" placeholder="Hero Subtitle">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Main Content</label>
-                            <textarea id="page-content" rows="10"></textarea>
-                        </div>
-
-                        <button onclick="savePageContent()" class="btn">Save Changes</button>
-                        <div id="page-save-success" class="success-message" style="display: none;">
-                            Page saved successfully!
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </main>
         </div>
     </div>
 
     <!-- Listing Form Modal -->
     <div id="listing-modal" class="modal">
         <div class="modal-content modal-large">
-            <span class="close" onclick="closeListingForm()">&times;</span>
-            <h2 id="listing-form-title">Add New Listing</h2>
+            <div class="modal-header">
+                <h2 id="listing-form-title">Add New Listing</h2>
+                <span class="close" onclick="closeListingForm()">&times;</span>
+            </div>
             <form id="listing-form" onsubmit="saveListing(event)">
                 <input type="hidden" id="listing-id">
                 
                 <div class="form-row">
                     <div class="form-group">
                         <label>Address *</label>
-                        <input type="text" id="listing-address" required>
+                        <input type="text" id="listing-address" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label>City *</label>
-                        <input type="text" id="listing-city" required>
+                        <input type="text" id="listing-city" class="form-control" required>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label>Price *</label>
-                        <input type="number" id="listing-price" required>
+                        <input type="number" id="listing-price" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label>Property Type *</label>
-                        <select id="listing-type" required>
+                        <select id="listing-type" class="form-control" required>
                             <option value="single-family">Single Family</option>
                             <option value="condo">Condo</option>
                             <option value="townhouse">Townhouse</option>
@@ -151,61 +383,75 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Bedrooms *</label>
-                        <input type="number" id="listing-beds" required min="0">
+                        <input type="number" id="listing-beds" class="form-control" required min="0">
                     </div>
                     <div class="form-group">
                         <label>Bathrooms *</label>
-                        <input type="number" id="listing-baths" required min="0" step="0.5">
+                        <input type="number" id="listing-baths" class="form-control" required min="0" step="0.5">
                     </div>
                     <div class="form-group">
                         <label>Square Feet *</label>
-                        <input type="number" id="listing-sqft" required>
+                        <input type="number" id="listing-sqft" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label>Year Built *</label>
-                        <input type="number" id="listing-year" required>
+                        <input type="number" id="listing-year" class="form-control" required>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Description *</label>
-                    <textarea id="listing-description" rows="4" required></textarea>
+                    <textarea id="listing-description" rows="4" class="form-control" required></textarea>
                 </div>
 
-                <div class="form-group">
-                    <label>Latitude (for map)</label>
-                    <input type="number" id="listing-lat" step="0.000001">
-                </div>
-
-                <div class="form-group">
-                    <label>Longitude (for map)</label>
-                    <input type="number" id="listing-lng" step="0.000001">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Latitude (for map)</label>
+                        <input type="number" id="listing-lat" class="form-control" step="0.000001">
+                    </div>
+                    <div class="form-group">
+                        <label>Longitude (for map)</label>
+                        <input type="number" id="listing-lng" class="form-control" step="0.000001">
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>Photo URLs (one per line)</label>
-                    <textarea id="listing-photos" rows="4" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+                    <textarea id="listing-photos" rows="4" class="form-control" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
                     <small>Upload photos to an image hosting service and paste URLs here</small>
                 </div>
 
                 <div class="form-group">
-                    <label>
+                    <label class="checkbox-label">
                         <input type="checkbox" id="listing-published" checked>
                         Published (visible on website)
                     </label>
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn">Save Listing</button>
+                    <button type="submit" class="btn btn-primary">Save Listing</button>
                     <button type="button" onclick="closeListingForm()" class="btn btn-secondary">Cancel</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Detail Modal for submissions -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="detail-modal-title">Details</h2>
+                <span class="close" onclick="closeDetailModal()">&times;</span>
+            </div>
+            <div id="detail-modal-content">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
     <script src="js/config.js"></script>
     <script src="js/data.js"></script>
     <script src="js/common.js"></script>
-    <script src="js/admin.js"></script>
+    <script src="js/admin-modern.js"></script>
 </body>
 </html>

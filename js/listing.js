@@ -169,15 +169,29 @@ function submitContactForm(event) {
     
     const form = event.target;
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
     
-    // In a real application, this would send data to a server
-    console.log('Contact form submitted:', data);
+    // Get the listing ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const listingId = urlParams.get('id');
+    const listing = getListingById(listingId);
     
-    // Show success message
-    alert('Thank you for your interest! We\'ll contact you soon to schedule a viewing.');
+    const request = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        message: formData.get('message'),
+        listingId: listingId,
+        listingAddress: listing ? listing.address : 'Unknown'
+    };
     
-    closeContactModal();
+    try {
+        saveViewingRequest(request);
+        alert('Thank you for your interest! We\'ll contact you soon to schedule a viewing.');
+        closeContactModal();
+    } catch (error) {
+        console.error('Failed to save viewing request:', error);
+        alert('Sorry, there was an error submitting your request. Please try again.');
+    }
 }
 
 // Close modal when clicking outside

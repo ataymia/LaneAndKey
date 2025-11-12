@@ -11,34 +11,43 @@ function submitContactForm(event) {
     submitButton.disabled = true;
     submitButton.textContent = 'Sending...';
     
-    // Send email using EmailJS
-    emailjs.sendForm('service_jvahbns', 'template_oiutm97', form)
-        .then(function(response) {
-            console.log('Email sent successfully:', response);
-            
-            // Hide form and show success message
-            form.style.display = 'none';
-            const successMessage = document.getElementById('contact-success');
+    // Get form data
+    const formData = new FormData(form);
+    const submission = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        interest: formData.get('interest'),
+        message: formData.get('message')
+    };
+    
+    // Save to local storage
+    try {
+        saveContactSubmission(submission);
+        
+        // Hide form and show success message
+        form.style.display = 'none';
+        const successMessage = document.getElementById('contact-success');
+        if (successMessage) {
+            successMessage.style.display = 'block';
+        }
+        
+        // Reset and show form again after 5 seconds
+        setTimeout(() => {
+            form.reset();
+            form.style.display = 'block';
             if (successMessage) {
-                successMessage.style.display = 'block';
+                successMessage.style.display = 'none';
             }
-            
-            // Reset and show form again after 5 seconds
-            setTimeout(() => {
-                form.reset();
-                form.style.display = 'block';
-                if (successMessage) {
-                    successMessage.style.display = 'none';
-                }
-                submitButton.disabled = false;
-                submitButton.textContent = originalButtonText;
-            }, 5000);
-        }, function(error) {
-            console.error('Failed to send email:', error);
-            alert('Sorry, there was an error sending your message. Please try again or contact us directly at laneandkey@gmail.com');
-            
-            // Re-enable button
             submitButton.disabled = false;
             submitButton.textContent = originalButtonText;
-        });
+        }, 5000);
+    } catch (error) {
+        console.error('Failed to save contact submission:', error);
+        alert('Sorry, there was an error submitting your message. Please try again.');
+        
+        // Re-enable button
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
 }
