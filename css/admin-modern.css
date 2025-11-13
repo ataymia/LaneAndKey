@@ -23,7 +23,7 @@
     max-width: 200px;
     height: auto;
     margin-bottom: 1.5rem;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
 .login-container h1 {
@@ -63,7 +63,7 @@
     max-width: 150px;
     height: auto;
     margin-bottom: 0.75rem;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
 .sidebar-header h2 {
