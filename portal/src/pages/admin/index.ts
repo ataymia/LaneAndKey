@@ -1,0 +1,10 @@
+export { AdminDashboard } from './AdminDashboard';
+export { PropertiesPage } from './PropertiesPage';
+export { TenantsPage } from './TenantsPage';
+export { ApplicationsPage } from './ApplicationsPage';
+export { PaymentsPage } from './PaymentsPage';
+export { MaintenancePage } from './MaintenancePage';
+export { MessagesPage } from './MessagesPage';
+export { AlertsPage } from './AlertsPage';
+export { DocumentsPage } from './DocumentsPage';
+export { SettingsPage } from './SettingsPage';

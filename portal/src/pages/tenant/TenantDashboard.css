@@ -1,0 +1,209 @@
+.tenant-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-card.rent-card {
+  background: var(--primary-gradient-soft);
+}
+
+.card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.card-icon.lease-icon {
+  background: var(--info-light);
+  color: var(--info-color);
+}
+
+.card-icon.maintenance-icon {
+  background: var(--warning-light);
+  color: var(--warning-color);
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-content h3 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.rent-amount {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.due-date {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.days-left {
+  color: var(--primary-dark);
+  font-weight: 500;
+}
+
+.card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--primary-dark);
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.card-link:hover {
+  text-decoration: underline;
+}
+
+.dashboard-section {
+  margin-bottom: 2rem;
+}
+
+.dashboard-section h2 {
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.quick-action {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.quick-action:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+  color: var(--primary-dark);
+}
+
+.quick-action svg {
+  color: var(--primary-color);
+}
+
+.quick-action span {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.property-info-card {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.property-image-placeholder {
+  width: 120px;
+  height: 100px;
+  background: var(--gray-100);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-400);
+}
+
+.property-details {
+  flex: 1;
+}
+
+.property-details h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.property-details p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .dashboard-card.rent-card {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-card.rent-card {
+    grid-column: span 1;
+  }
+  
+  .quick-actions {
+    flex-direction: column;
+  }
+  
+  .property-info-card {
+    flex-direction: column;
+  }
+  
+  .property-image-placeholder {
+    width: 100%;
+    height: 120px;
+  }
+}
