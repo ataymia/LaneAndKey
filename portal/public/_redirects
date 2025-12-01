@@ -1,3 +1,0 @@
-# Cloudflare Pages SPA fallback
-# All routes should serve index.html for React Router to handle
-/*    /portal/index.html   200
