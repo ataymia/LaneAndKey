@@ -132,6 +132,16 @@ service cloud.firestore {
 }
 ```
 
+### Firestore Composite Indexes
+
+For optimal query performance, create these composite indexes in Firebase Console > Firestore > Indexes:
+
+| Collection | Fields | Order |
+|------------|--------|-------|
+| alerts | userId, archived, createdAt | ASC, ASC, DESC |
+| conversations | participantIds, lastMessageAt | ARRAY, DESC |
+| messages | conversationId, createdAt | ASC, ASC |
+
 ### Storage Security Rules
 
 ```javascript

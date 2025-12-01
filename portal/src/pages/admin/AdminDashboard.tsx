@@ -48,10 +48,10 @@ export function AdminDashboard() {
   const loadDashboardData = async () => {
     try {
       // Fetch all data in parallel
-      const [properties, applications, tickets, leases] = await Promise.all([
+      const [properties, applications, allTickets, leases] = await Promise.all([
         propertyService.getAll(),
         applicationService.getByStatus('new'),
-        maintenanceService.getByStatus('new'),
+        maintenanceService.getAll(),
         leaseService.getActive(),
       ]);
 
@@ -66,11 +66,13 @@ export function AdminDashboard() {
         return endDate >= today && endDate <= sixtyDaysFromNow;
       }).length;
 
-      // Get all open tickets
-      const allOpenTickets = await maintenanceService.getAll();
-      const openTicketCount = allOpenTickets.filter(t => 
+      // Count open tickets from the already fetched data
+      const openTicketCount = allTickets.filter(t => 
         t.status === 'new' || t.status === 'in_progress' || t.status === 'waiting'
       ).length;
+      
+      // Get new tickets for the recent activity list
+      const newTickets = allTickets.filter(t => t.status === 'new');
 
       setStats({
         totalProperties: properties.length,
@@ -82,7 +84,7 @@ export function AdminDashboard() {
       });
 
       setRecentApplications(applications.slice(0, 5));
-      setRecentTickets(tickets.slice(0, 5));
+      setRecentTickets(newTickets.slice(0, 5));
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
