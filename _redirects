@@ -1,0 +1,3 @@
+# Cloudflare Pages redirects
+# SPA fallback for portal React application
+/portal/*    /portal/index.html   200
