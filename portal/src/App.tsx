@@ -67,7 +67,7 @@ function HomeRedirect() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/portal">
       <AuthProvider>
         <Routes>
           {/* Public Routes */}

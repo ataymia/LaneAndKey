@@ -23,8 +23,8 @@ On the build configuration page:
 
 - **Project name**: Choose a name (e.g., `laneandkey-properties`)
 - **Production branch**: `main` (or your default branch)
-- **Build command**: `bash build.sh` (optional - no build step required)
-- **Build output directory**: `/`
+- **Build command**: `bash build.sh`
+- **Build output directory**: `dist`
 
 Click **Save and Deploy**
 

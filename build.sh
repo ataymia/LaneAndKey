@@ -8,6 +8,8 @@
 # - ADMIN_USERNAME: The admin username
 # - ADMIN_PASSWORD: The admin password
 
+set -e
+
 echo "Building Lane & Key Properties website..."
 
 # Check if environment variables are set (informational only)
@@ -19,4 +21,30 @@ else
     echo "Environment variables detected (will be used by /api/admin-auth endpoint at runtime)."
 fi
 
-echo "Build complete!"
+# Create output directory
+echo "Creating output directory..."
+rm -rf dist
+mkdir -p dist
+
+# Copy main website files
+echo "Copying main website files..."
+cp -r css dist/
+cp -r js dist/
+cp -r images dist/
+cp -r functions dist/
+cp *.html dist/
+cp _headers dist/
+cp _redirects dist/
+
+# Build the portal React application
+echo "Building portal application..."
+cd portal
+npm ci
+npm run build
+cd ..
+
+# Copy the built portal to the output directory
+echo "Copying portal build to dist/portal..."
+cp -r portal/dist dist/portal
+
+echo "Build complete! Output is in the 'dist' directory."
