@@ -1,0 +1,114 @@
+.alerts-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.alerts-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: var(--primary-color);
+}
+
+.filter-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-dark);
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--primary-color);
+  transition: all 0.2s;
+}
+
+.alert-item.read {
+  border-left-color: var(--gray-300);
+  opacity: 0.7;
+}
+
+.alert-item.read:hover {
+  opacity: 1;
+}
+
+.alert-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alert-icon.primary { background: var(--primary-light); color: var(--primary-dark); }
+.alert-icon.success { background: var(--success-light); color: var(--success-color); }
+.alert-icon.warning { background: var(--warning-light); color: var(--warning-color); }
+.alert-icon.error { background: var(--error-light); color: var(--error-color); }
+.alert-icon.info { background: var(--info-light); color: var(--info-color); }
+.alert-icon.gray { background: var(--gray-200); color: var(--gray-600); }
+
+.alert-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.alert-message {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.alert-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.alert-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.alert-skeleton {
+  height: 80px;
+  margin-bottom: 0.75rem;
+}
+
+.alerts-loading {
+  display: flex;
+  flex-direction: column;
+}
