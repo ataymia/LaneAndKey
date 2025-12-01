@@ -108,6 +108,29 @@ body {
     cursor: pointer;
 }
 
+.nav-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-portal {
+    background-color: var(--white);
+    color: var(--primary-dark);
+    padding: 0.5rem 1.25rem;
+    border-radius: 20px;
+    font-weight: 600;
+    transition: all 0.3s;
+    text-decoration: none;
+}
+
+.btn-portal:hover {
+    background-color: var(--primary-dark);
+    color: var(--white);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
 /* Hero Section */
 .hero {
     background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-color) 100%);

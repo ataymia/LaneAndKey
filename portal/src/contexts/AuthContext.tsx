@@ -10,12 +10,78 @@ import {
   resetPassword as firebaseResetPassword,
   updateUserRole as firebaseUpdateUserRole,
 } from '../lib/firebase';
+import { isFirebaseConfigured } from '../lib/firebase/config';
 import type { UserProfile, UserRole } from '../types';
+
+// Demo accounts for testing when Firebase is not configured
+const DEMO_ACCOUNTS: Record<string, { password: string; profile: UserProfile }> = {
+  'admin@laneandkey.com': {
+    password: 'Demo123!',
+    profile: {
+      uid: 'demo-admin-001',
+      email: 'admin@laneandkey.com',
+      displayName: 'Demo Admin',
+      role: 'admin' as UserRole,
+      phone: '(555) 123-4567',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      notificationPreferences: {
+        emailNotifications: true,
+        smsNotifications: false,
+        rentReminders: true,
+        maintenanceUpdates: true,
+        leaseAlerts: true,
+      },
+    },
+  },
+  'tenant@laneandkey.com': {
+    password: 'Demo123!',
+    profile: {
+      uid: 'demo-tenant-001',
+      email: 'tenant@laneandkey.com',
+      displayName: 'Demo Tenant',
+      role: 'tenant' as UserRole,
+      phone: '(555) 234-5678',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      notificationPreferences: {
+        emailNotifications: true,
+        smsNotifications: false,
+        rentReminders: true,
+        maintenanceUpdates: true,
+        leaseAlerts: true,
+      },
+    },
+  },
+  'applicant@laneandkey.com': {
+    password: 'Demo123!',
+    profile: {
+      uid: 'demo-applicant-001',
+      email: 'applicant@laneandkey.com',
+      displayName: 'Demo Applicant',
+      role: 'applicant' as UserRole,
+      phone: '(555) 345-6789',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      notificationPreferences: {
+        emailNotifications: true,
+        smsNotifications: false,
+        rentReminders: true,
+        maintenanceUpdates: true,
+        leaseAlerts: true,
+      },
+    },
+  },
+};
+
+// Check if demo mode is enabled (Firebase not configured)
+export const isDemoMode = !isFirebaseConfigured;
 
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  isDemoMode: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
@@ -55,6 +121,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
+    // In demo mode, check for stored demo session
+    if (isDemoMode) {
+      const storedProfile = localStorage.getItem('demo_user_profile');
+      if (storedProfile) {
+        try {
+          setUserProfile(JSON.parse(storedProfile));
+        } catch {
+          localStorage.removeItem('demo_user_profile');
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Normal Firebase auth flow
     const unsubscribe = onAuthChange(async (currentUser) => {
       setUser(currentUser);
       await fetchUserProfile(currentUser);
@@ -65,32 +146,67 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string) => {
+    if (isDemoMode) {
+      throw new Error('Sign up is not available in demo mode. Please use one of the demo accounts.');
+    }
     await firebaseSignUp(email, password, displayName);
     // Profile will be fetched automatically by onAuthChange
   };
 
   const signIn = async (email: string, password: string) => {
+    if (isDemoMode) {
+      // Demo mode login
+      const demoAccount = DEMO_ACCOUNTS[email.toLowerCase()];
+      if (!demoAccount) {
+        throw new Error('Invalid demo account. Use admin@laneandkey.com, tenant@laneandkey.com, or applicant@laneandkey.com');
+      }
+      if (demoAccount.password !== password) {
+        throw new Error('Invalid password for demo account');
+      }
+      setUserProfile(demoAccount.profile);
+      localStorage.setItem('demo_user_profile', JSON.stringify(demoAccount.profile));
+      return;
+    }
     await firebaseSignIn(email, password);
     // Profile will be fetched automatically by onAuthChange
   };
 
   const logOut = async () => {
+    if (isDemoMode) {
+      setUserProfile(null);
+      localStorage.removeItem('demo_user_profile');
+      return;
+    }
     await firebaseLogOut();
     setUser(null);
     setUserProfile(null);
   };
 
   const resetPassword = async (email: string) => {
+    if (isDemoMode) {
+      throw new Error('Password reset is not available in demo mode.');
+    }
     await firebaseResetPassword(email);
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (isDemoMode) {
+      if (userProfile) {
+        const updatedProfile = { ...userProfile, ...updates };
+        setUserProfile(updatedProfile);
+        localStorage.setItem('demo_user_profile', JSON.stringify(updatedProfile));
+      }
+      return;
+    }
     if (!user) throw new Error('No user logged in');
     await updateUserProfile(user.uid, updates);
     await fetchUserProfile(user);
   };
 
   const updateRole = async (uid: string, role: UserRole) => {
+    if (isDemoMode) {
+      throw new Error('Role updates are not available in demo mode.');
+    }
     await firebaseUpdateUserRole(uid, role);
     // Refresh profile if it's the current user
     if (user && user.uid === uid) {
@@ -99,6 +215,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const refreshProfile = async () => {
+    if (isDemoMode) {
+      return;
+    }
     await fetchUserProfile(user);
   };
 
@@ -106,6 +225,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     userProfile,
     loading,
+    isDemoMode,
     signUp,
     signIn,
     logOut,

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts';
-import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LogIn, AlertCircle } from 'lucide-react';
 import './Auth.css';
 
 export function LoginPage() {
@@ -10,8 +10,25 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, userProfile } = useAuth();
+  const { signIn, userProfile, isDemoMode } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect based on role after login
+  useEffect(() => {
+    if (userProfile) {
+      switch (userProfile.role) {
+        case 'admin':
+          navigate('/admin', { replace: true });
+          break;
+        case 'tenant':
+          navigate('/tenant', { replace: true });
+          break;
+        case 'applicant':
+          navigate('/applicant', { replace: true });
+          break;
+      }
+    }
+  }, [userProfile, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +37,7 @@ export function LoginPage() {
 
     try {
       await signIn(email, password);
-      // Navigation will be handled by the auth state change
+      // Navigation will be handled by the useEffect above
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('auth/invalid-credential') || 
@@ -30,7 +47,7 @@ export function LoginPage() {
         } else if (err.message.includes('auth/too-many-requests')) {
           setError('Too many attempts. Please try again later.');
         } else {
-          setError('Failed to sign in. Please try again.');
+          setError(err.message);
         }
       } else {
         setError('An unexpected error occurred');
@@ -40,20 +57,15 @@ export function LoginPage() {
     }
   };
 
-  // Redirect based on role after login
-  if (userProfile) {
-    switch (userProfile.role) {
-      case 'admin':
-        navigate('/admin', { replace: true });
-        break;
-      case 'tenant':
-        navigate('/tenant', { replace: true });
-        break;
-      case 'applicant':
-        navigate('/applicant', { replace: true });
-        break;
-    }
-  }
+  const fillDemoCredentials = (accountType: 'admin' | 'tenant' | 'applicant') => {
+    const emails = {
+      admin: 'admin@laneandkey.com',
+      tenant: 'tenant@laneandkey.com',
+      applicant: 'applicant@laneandkey.com',
+    };
+    setEmail(emails[accountType]);
+    setPassword('Demo123!');
+  };
 
   return (
     <div className="auth-page">
@@ -65,6 +77,46 @@ export function LoginPage() {
           <h1>Welcome Back</h1>
           <p>Sign in to your Lane & Key account</p>
         </div>
+
+        {isDemoMode && (
+          <div className="demo-mode-banner">
+            <AlertCircle size={18} />
+            <div>
+              <strong>Demo Mode</strong>
+              <p>Firebase not configured. Use demo accounts below:</p>
+            </div>
+          </div>
+        )}
+
+        {isDemoMode && (
+          <div className="demo-accounts">
+            <button 
+              type="button" 
+              className="demo-account-btn admin"
+              onClick={() => fillDemoCredentials('admin')}
+            >
+              <span className="demo-role">Admin</span>
+              <span className="demo-email">admin@laneandkey.com</span>
+            </button>
+            <button 
+              type="button" 
+              className="demo-account-btn tenant"
+              onClick={() => fillDemoCredentials('tenant')}
+            >
+              <span className="demo-role">Tenant</span>
+              <span className="demo-email">tenant@laneandkey.com</span>
+            </button>
+            <button 
+              type="button" 
+              className="demo-account-btn applicant"
+              onClick={() => fillDemoCredentials('applicant')}
+            >
+              <span className="demo-role">Applicant</span>
+              <span className="demo-email">applicant@laneandkey.com</span>
+            </button>
+            <p className="demo-password-hint">Password for all: <code>Demo123!</code></p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && (
@@ -109,11 +161,13 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="form-actions-auth">
-            <Link to="/forgot-password" className="forgot-link">
-              Forgot password?
-            </Link>
-          </div>
+          {!isDemoMode && (
+            <div className="form-actions-auth">
+              <Link to="/forgot-password" className="forgot-link">
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={loading}>
             {loading ? (
@@ -130,12 +184,14 @@ export function LoginPage() {
           </button>
         </form>
 
-        <div className="auth-footer">
-          <p>
-            Don't have an account?{' '}
-            <Link to="/signup">Create one</Link>
-          </p>
-        </div>
+        {!isDemoMode && (
+          <div className="auth-footer">
+            <p>
+              Don't have an account?{' '}
+              <Link to="/signup">Create one</Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

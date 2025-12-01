@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, isDemoMode } = useAuth();
 
   if (loading) {
     return (
@@ -38,7 +38,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     );
   }
 
-  if (!user) {
+  // In demo mode, check userProfile instead of user
+  // In normal mode, check both user and userProfile
+  const isAuthenticated = isDemoMode ? !!userProfile : (!!user && !!userProfile);
+
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 

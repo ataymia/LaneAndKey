@@ -8,7 +8,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from './config';
+import { auth, db, isFirebaseConfigured } from './config';
 import type { UserProfile, UserRole } from '../../types';
 
 // Sign up a new user
@@ -18,6 +18,10 @@ export async function signUp(
   displayName: string,
   role: UserRole = 'applicant'
 ): Promise<User> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Cannot sign up in demo mode.');
+  }
+  
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
@@ -50,17 +54,26 @@ export async function signUp(
 
 // Sign in existing user
 export async function signIn(email: string, password: string): Promise<User> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Use demo mode to sign in.');
+  }
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
   return userCredential.user;
 }
 
 // Sign out
 export async function logOut(): Promise<void> {
+  if (!isFirebaseConfigured) {
+    return;
+  }
   await signOut(auth);
 }
 
 // Get user profile from Firestore
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  if (!isFirebaseConfigured) {
+    return null;
+  }
   const docRef = doc(db, 'users', uid);
   const docSnap = await getDoc(docRef);
   
@@ -81,6 +94,9 @@ export async function updateUserProfile(
   uid: string,
   updates: Partial<UserProfile>
 ): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Cannot update profile in demo mode.');
+  }
   const docRef = doc(db, 'users', uid);
   await setDoc(docRef, {
     ...updates,
@@ -90,6 +106,9 @@ export async function updateUserProfile(
 
 // Update user role (admin only)
 export async function updateUserRole(uid: string, role: UserRole): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Cannot update role in demo mode.');
+  }
   const docRef = doc(db, 'users', uid);
   await setDoc(docRef, {
     role,
@@ -99,15 +118,26 @@ export async function updateUserRole(uid: string, role: UserRole): Promise<void>
 
 // Send password reset email
 export async function resetPassword(email: string): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Cannot reset password in demo mode.');
+  }
   await sendPasswordResetEmail(auth, email);
 }
 
 // Subscribe to auth state changes
 export function onAuthChange(callback: (user: User | null) => void): () => void {
+  if (!isFirebaseConfigured) {
+    // In demo mode, immediately call with null and return a no-op unsubscribe
+    callback(null);
+    return () => {};
+  }
   return onAuthStateChanged(auth, callback);
 }
 
 // Get current user
 export function getCurrentUser(): User | null {
+  if (!isFirebaseConfigured) {
+    return null;
+  }
   return auth.currentUser;
 }

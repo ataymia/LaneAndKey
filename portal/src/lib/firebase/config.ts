@@ -34,32 +34,38 @@ const missingEnvVars = requiredEnvVars.filter(
 );
 
 if (missingEnvVars.length > 0) {
-  const message = `Firebase configuration incomplete. Missing environment variables: ${missingEnvVars.join(', ')}. ` +
-    'See README.md for setup instructions.';
-  
-  if (import.meta.env.PROD) {
-    // In production, throw an error to prevent running with incomplete config
-    throw new Error(message);
-  } else {
-    // In development, show warning but allow app to load for UI development
-    console.warn(message);
-  }
+  console.warn(
+    `Firebase configuration incomplete. Missing environment variables: ${missingEnvVars.join(', ')}. ` +
+    'Running in demo mode. See README.md for setup instructions.'
+  );
 }
 
-// Initialize Firebase
-let app: FirebaseApp;
+// Initialize Firebase or create placeholder objects for demo mode
+let app: FirebaseApp | null = null;
 let auth: Auth;
 let db: Firestore;
 let storage: FirebaseStorage;
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-} catch (error) {
-  console.error('Failed to initialize Firebase:', error);
-  throw error;
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } catch (error) {
+    console.error('Failed to initialize Firebase:', error);
+    // Create placeholder objects that will throw when accessed
+    // The isFirebaseConfigured check in auth.ts will prevent actual usage
+    auth = {} as Auth;
+    db = {} as Firestore;
+    storage = {} as FirebaseStorage;
+  }
+} else {
+  // Demo mode - create placeholder objects
+  // The isFirebaseConfigured check in auth.ts will prevent actual usage
+  auth = {} as Auth;
+  db = {} as Firestore;
+  storage = {} as FirebaseStorage;
 }
 
 export { auth, db, storage };
