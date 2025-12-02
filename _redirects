@@ -1,3 +1,7 @@
 # Cloudflare Pages redirects
 # SPA fallback for portal React application
+# Exclude static assets from SPA fallback - they should be served directly
+/portal/assets/*  /portal/assets/:splat  200
+/portal/vite.svg  /portal/vite.svg  200
+# SPA fallback for all other portal routes
 /portal/*    /portal/index.html   200
