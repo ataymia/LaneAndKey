@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if user is already authenticated
     if (checkAuth()) {
         showAdminPanel();
-    }
+    } 
 });
 
 async function handleLogin(event) {
