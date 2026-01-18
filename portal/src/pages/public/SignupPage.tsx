@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts';
-import { Eye, EyeOff, Loader2, UserPlus } from 'lucide-react';
+import { isFirebaseConfigured } from '../../lib/firebase/config';
+import { Eye, EyeOff, Loader2, UserPlus, AlertTriangle } from 'lucide-react';
 import './Auth.css';
 
 export function SignupPage() {
@@ -59,14 +60,18 @@ export function SignupPage() {
       navigate('/applicant', { replace: true });
     } catch (err) {
       if (err instanceof Error) {
-        if (err.message.includes('auth/email-already-in-use')) {
+        // Check for demo mode or Firebase config errors first
+        if (err.message.includes('demo mode') || err.message.includes('not configured')) {
+          setError(err.message);
+        } else if (err.message.includes('auth/email-already-in-use')) {
           setError('An account with this email already exists');
         } else if (err.message.includes('auth/invalid-email')) {
           setError('Invalid email address');
         } else if (err.message.includes('auth/weak-password')) {
           setError('Password is too weak');
         } else {
-          setError('Failed to create account. Please try again.');
+          // Show the actual error message for debugging
+          setError(err.message || 'Failed to create account. Please try again.');
         }
       } else {
         setError('An unexpected error occurred');
@@ -88,6 +93,16 @@ export function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
+          {!isFirebaseConfigured && (
+            <div className="auth-warning">
+              <AlertTriangle size={18} />
+              <div>
+                <strong>Demo Mode</strong>
+                <p>Firebase is not configured. Sign up is disabled. Use demo accounts to log in.</p>
+              </div>
+            </div>
+          )}
+          
           {error && (
             <div className="auth-error">
               {error}
