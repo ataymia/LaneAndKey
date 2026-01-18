@@ -26,6 +26,7 @@ import type {
   Tenant,
   Lease,
   Payment,
+  Invoice,
   MaintenanceTicket,
   Message,
   Conversation,
@@ -273,16 +274,69 @@ export const paymentService = {
   getByTenant: (tenantId: string) =>
     getDocuments<Payment>('payments', where('tenantId', '==', tenantId), orderBy('createdAt', 'desc')),
   
+  getByTenantUid: (tenantUid: string) =>
+    getDocuments<Payment>('payments', where('tenantUid', '==', tenantUid), orderBy('createdAt', 'desc')),
+  
   getByLease: (leaseId: string) =>
     getDocuments<Payment>('payments', where('leaseId', '==', leaseId)),
   
   getByStatus: (status: Payment['status']) =>
     getDocuments<Payment>('payments', where('status', '==', status)),
   
+  getByStripeSessionId: (sessionId: string) =>
+    getDocuments<Payment>('payments', where('stripeSessionId', '==', sessionId), limit(1)),
+  
   update: (id: string, data: Partial<Payment>) =>
     updateDocument<Payment>('payments', id, data),
   
   delete: (id: string) => deleteDocument('payments', id),
+};
+
+// ==================== INVOICES ====================
+export const invoiceService = {
+  create: (data: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) =>
+    createDocument<Invoice>('invoices', data),
+  
+  get: (id: string) => getDocument<Invoice>('invoices', id),
+  
+  getByTenant: (tenantId: string) =>
+    getDocuments<Invoice>('invoices', where('tenantId', '==', tenantId), orderBy('dueDate', 'desc')),
+  
+  getByTenantUid: (tenantUid: string) =>
+    getDocuments<Invoice>('invoices', where('tenantUid', '==', tenantUid), orderBy('dueDate', 'desc')),
+  
+  getByLease: (leaseId: string) =>
+    getDocuments<Invoice>('invoices', where('leaseId', '==', leaseId), orderBy('dueDate', 'desc')),
+  
+  getByProperty: (propertyId: string) =>
+    getDocuments<Invoice>('invoices', where('propertyId', '==', propertyId), orderBy('dueDate', 'desc')),
+  
+  getByStatus: (status: Invoice['status']) =>
+    getDocuments<Invoice>('invoices', where('status', '==', status), orderBy('dueDate', 'desc')),
+  
+  getDue: (tenantUid: string) =>
+    getDocuments<Invoice>('invoices', 
+      where('tenantUid', '==', tenantUid), 
+      where('status', 'in', ['due', 'overdue']),
+      orderBy('dueDate', 'asc')
+    ),
+  
+  getAll: () =>
+    getDocuments<Invoice>('invoices', orderBy('dueDate', 'desc')),
+  
+  update: (id: string, data: Partial<Invoice>) =>
+    updateDocument<Invoice>('invoices', id, data),
+  
+  markPaid: async (id: string, stripeSessionId?: string, stripePaymentIntentId?: string) => {
+    await updateDocument<Invoice>('invoices', id, {
+      status: 'paid',
+      paidAt: new Date(),
+      ...(stripeSessionId && { stripeSessionId }),
+      ...(stripePaymentIntentId && { stripePaymentIntentId }),
+    });
+  },
+  
+  delete: (id: string) => deleteDocument('invoices', id),
 };
 
 // ==================== MAINTENANCE ====================

@@ -1,7 +1,8 @@
 export { TenantDashboard } from './TenantDashboard';
+export { TenantPaymentsPage } from './TenantPaymentsPage';
+export { PaymentSuccessPage } from './PaymentSuccessPage';
 export { 
   TenantLeasePage,
-  TenantPaymentsPage,
   TenantMaintenancePage,
   TenantDocumentsPage,
   TenantMessagesPage,

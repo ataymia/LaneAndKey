@@ -17,24 +17,6 @@ export function TenantLeasePage() {
   );
 }
 
-export function TenantPaymentsPage() {
-  return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Payments</h1>
-        <p>View payment history and make payments</p>
-      </div>
-      <div className="empty-state">
-        <div className="empty-state-icon">💳</div>
-        <h3 className="empty-state-title">No payment history</h3>
-        <p className="empty-state-description">
-          Your payment history will appear here.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export function TenantMaintenancePage() {
   return (
     <div className="page">

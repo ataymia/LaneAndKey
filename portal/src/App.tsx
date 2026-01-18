@@ -13,6 +13,7 @@ import {
   TenantsPage,
   ApplicationsPage,
   PaymentsPage,
+  InvoicesPage,
   MaintenancePage,
   MessagesPage,
   AlertsPage,
@@ -25,6 +26,7 @@ import {
   TenantDashboard,
   TenantLeasePage,
   TenantPaymentsPage,
+  PaymentSuccessPage,
   TenantMaintenancePage,
   TenantDocumentsPage,
   TenantMessagesPage,
@@ -91,6 +93,7 @@ function App() {
             <Route path="tenants" element={<TenantsPage />} />
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="payments" element={<PaymentsPage />} />
+            <Route path="invoices" element={<InvoicesPage />} />
             <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="messages" element={<MessagesPage />} />
             <Route path="alerts" element={<AlertsPage />} />
@@ -110,6 +113,7 @@ function App() {
             <Route index element={<TenantDashboard />} />
             <Route path="lease" element={<TenantLeasePage />} />
             <Route path="payments" element={<TenantPaymentsPage />} />
+            <Route path="payments/success" element={<PaymentSuccessPage />} />
             <Route path="maintenance" element={<TenantMaintenancePage />} />
             <Route path="documents" element={<TenantDocumentsPage />} />
             <Route path="messages" element={<TenantMessagesPage />} />

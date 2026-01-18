@@ -1,21 +1,29 @@
 /**
  * Stripe Integration Module
  * 
- * This module provides integration stubs for Stripe payment processing.
- * To complete the integration:
+ * This module provides integration with Stripe payment processing.
  * 
+ * Setup:
  * 1. Create a Stripe account at https://stripe.com
  * 2. Get your publishable key from the Stripe Dashboard
  * 3. Set the VITE_STRIPE_PUBLISHABLE_KEY environment variable
- * 4. For backend processing, set up Cloudflare Workers or Firebase Functions
- *    with your Stripe secret key (NEVER expose in client code)
- * 5. Configure webhooks in Stripe Dashboard to point to your webhook endpoint
+ * 4. Backend endpoints are in /functions/api/stripe/
+ * 5. Configure webhooks in Stripe Dashboard to point to /api/stripe/webhook
+ * 
+ * Required Environment Variables:
+ * - VITE_STRIPE_PUBLISHABLE_KEY (client-side)
+ * - STRIPE_SECRET_KEY (server-side only)
+ * - STRIPE_WEBHOOK_SECRET (server-side only)
  */
 
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
+import { auth } from './firebase/config';
 
 // Stripe publishable key from environment variables
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+
+// API base URL for Stripe endpoints
+const API_BASE = '/api/stripe';
 
 // Lazy-loaded Stripe instance
 let stripePromise: Promise<Stripe | null> | null = null;
@@ -45,179 +53,148 @@ export function isStripeConfigured(): boolean {
 }
 
 /**
- * Create a payment session for rent payment
- * 
- * This is a stub that should be implemented with a backend function.
- * The backend should use the Stripe secret key to create the session.
- * 
- * @param tenantId - The tenant making the payment
- * @param amount - Payment amount in cents
- * @param description - Payment description
- * @returns Session ID for Stripe Checkout
+ * Get the current user's Firebase ID token for API authentication
  */
-export async function createPaymentSession(
-  tenantId: string,
-  amount: number,
-  description: string
-): Promise<{ sessionId: string; url: string } | null> {
-  // TODO: Implement backend API call
-  // This should call a Cloudflare Worker or Firebase Function that:
-  // 1. Authenticates the user
-  // 2. Creates a Stripe Checkout Session using the secret key
-  // 3. Returns the session ID and checkout URL
-  
-  console.log('Creating payment session:', { tenantId, amount, description });
-  
-  // Placeholder - replace with actual API call
-  const API_ENDPOINT = import.meta.env.VITE_STRIPE_API_ENDPOINT || '/api/stripe/create-session';
-  
-  try {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        tenantId,
-        amount,
-        description,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to create payment session');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating payment session:', error);
-    return null;
+async function getIdToken(): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User must be logged in to make payments');
   }
+  return await user.getIdToken();
 }
 
 /**
- * Create an invoice for a tenant
- * 
- * This is a stub that should be implemented with a backend function.
- * 
- * @param tenantId - The tenant to invoice
- * @param items - Line items for the invoice
- * @returns Invoice ID
+ * Payment type options
  */
-export async function createInvoice(
-  tenantId: string,
-  items: Array<{ description: string; amount: number }>
-): Promise<{ invoiceId: string; url: string } | null> {
-  // TODO: Implement backend API call
+export type PaymentType = 'rent' | 'deposit' | 'fee' | 'late_fee' | 'application_fee' | 'other';
+
+/**
+ * Create a checkout session request
+ */
+export interface CreateCheckoutSessionRequest {
+  type: PaymentType;
+  amount: number; // Amount in cents
+  description?: string;
+  invoiceId?: string;
+  leaseId?: string;
+  metadata?: Record<string, string>;
+}
+
+/**
+ * Checkout session response
+ */
+export interface CheckoutSessionResponse {
+  url: string;
+  sessionId: string;
+}
+
+/**
+ * Create a Stripe Checkout session and redirect to payment
+ * 
+ * This calls the server-side endpoint which:
+ * 1. Authenticates the user via Firebase token
+ * 2. Creates a Stripe Checkout Session
+ * 3. Returns the checkout URL
+ * 
+ * @param params - Payment parameters
+ * @returns Checkout session data with URL for redirect
+ */
+export async function createCheckoutSession(
+  params: CreateCheckoutSessionRequest
+): Promise<CheckoutSessionResponse> {
+  const idToken = await getIdToken();
   
-  console.log('Creating invoice:', { tenantId, items });
+  const response = await fetch(`${API_BASE}/create-checkout-session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(params),
+  });
   
-  const API_ENDPOINT = import.meta.env.VITE_STRIPE_API_ENDPOINT || '/api/stripe/create-invoice';
-  
-  try {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        tenantId,
-        items,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to create invoice');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating invoice:', error);
-    return null;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Payment failed' }));
+    throw new Error(error.error || 'Failed to create checkout session');
   }
+  
+  return await response.json();
 }
 
 /**
  * Redirect to Stripe Checkout
  * 
- * @param sessionId - The Checkout session ID
+ * @param params - Payment parameters
  */
-export async function redirectToCheckout(sessionId: string): Promise<void> {
-  const stripe = await getStripe();
+export async function redirectToCheckout(params: CreateCheckoutSessionRequest): Promise<void> {
+  const session = await createCheckoutSession(params);
   
-  if (!stripe) {
-    throw new Error('Stripe not configured');
-  }
-  
-  // Redirect to checkout session URL via backend
-  // The backend should return the checkout URL from Stripe
-  window.location.href = `/api/stripe/checkout?session_id=${sessionId}`;
+  // Redirect to Stripe's hosted checkout page
+  window.location.href = session.url;
 }
 
 /**
- * Setup auto-pay for a tenant
+ * Pay rent - convenience function
  * 
- * This is a stub that should be implemented with a backend function.
- * Uses Stripe Setup Intents to save payment methods.
- * 
- * @param tenantId - The tenant setting up auto-pay
- * @returns Setup Intent client secret
+ * @param amount - Amount in cents
+ * @param leaseId - Lease ID
+ * @param invoiceId - Invoice ID (optional)
  */
-export async function setupAutoPay(
-  tenantId: string
-): Promise<{ clientSecret: string } | null> {
-  // TODO: Implement backend API call
-  
-  console.log('Setting up auto-pay for:', tenantId);
-  
-  const API_ENDPOINT = import.meta.env.VITE_STRIPE_API_ENDPOINT || '/api/stripe/setup-autopay';
-  
-  try {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tenantId }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to setup auto-pay');
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error setting up auto-pay:', error);
-    return null;
-  }
+export async function payRent(
+  amount: number,
+  leaseId: string,
+  invoiceId?: string
+): Promise<void> {
+  await redirectToCheckout({
+    type: 'rent',
+    amount,
+    description: 'Rent Payment',
+    leaseId,
+    invoiceId,
+  });
 }
 
 /**
- * Cancel auto-pay for a tenant
+ * Pay security deposit - convenience function
  * 
- * @param tenantId - The tenant canceling auto-pay
+ * @param amount - Amount in cents
+ * @param leaseId - Lease ID
+ * @param invoiceId - Invoice ID (optional)
  */
-export async function cancelAutoPay(tenantId: string): Promise<boolean> {
-  // TODO: Implement backend API call
-  
-  console.log('Canceling auto-pay for:', tenantId);
-  
-  const API_ENDPOINT = import.meta.env.VITE_STRIPE_API_ENDPOINT || '/api/stripe/cancel-autopay';
-  
-  try {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tenantId }),
-    });
-    
-    return response.ok;
-  } catch (error) {
-    console.error('Error canceling auto-pay:', error);
-    return false;
-  }
+export async function payDeposit(
+  amount: number,
+  leaseId: string,
+  invoiceId?: string
+): Promise<void> {
+  await redirectToCheckout({
+    type: 'deposit',
+    amount,
+    description: 'Security Deposit',
+    leaseId,
+    invoiceId,
+  });
+}
+
+/**
+ * Pay a fee (late fee, application fee, etc.)
+ * 
+ * @param amount - Amount in cents
+ * @param feeType - Type of fee
+ * @param description - Fee description
+ * @param invoiceId - Invoice ID (optional)
+ */
+export async function payFee(
+  amount: number,
+  feeType: 'fee' | 'late_fee' | 'application_fee',
+  description: string,
+  invoiceId?: string
+): Promise<void> {
+  await redirectToCheckout({
+    type: feeType,
+    amount,
+    description,
+    invoiceId,
+  });
 }
 
 /**
@@ -229,51 +206,6 @@ export type StripePaymentStatus =
   | 'invoice.paid'
   | 'invoice.payment_failed'
   | 'checkout.session.completed';
-
-/**
- * Webhook handler stub
- * 
- * This should be implemented as a Cloudflare Worker or Firebase Function.
- * Example webhook endpoint implementation:
- * 
- * ```typescript
- * // In Cloudflare Worker or Firebase Function
- * import Stripe from 'stripe';
- * 
- * const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
- * 
- * export async function handleWebhook(request: Request) {
- *   const sig = request.headers.get('stripe-signature');
- *   const body = await request.text();
- *   
- *   let event: Stripe.Event;
- *   
- *   try {
- *     event = stripe.webhooks.constructEvent(
- *       body,
- *       sig!,
- *       process.env.STRIPE_WEBHOOK_SECRET
- *     );
- *   } catch (err) {
- *     return new Response('Webhook signature verification failed', { status: 400 });
- *   }
- *   
- *   switch (event.type) {
- *     case 'checkout.session.completed':
- *       // Update payment status in Firestore
- *       break;
- *     case 'payment_intent.succeeded':
- *       // Record successful payment
- *       break;
- *     case 'payment_intent.payment_failed':
- *       // Handle failed payment
- *       break;
- *   }
- *   
- *   return new Response('OK');
- * }
- * ```
- */
 
 /**
  * Stripe configuration information

@@ -294,13 +294,37 @@ export interface LeaseAttachment {
   uploadedAt: Date;
 }
 
-// Payment
+// Invoice - represents amounts due from tenants
+export interface Invoice {
+  id: string;
+  tenantUid: string; // User UID
+  tenantId: string; // Tenant document ID
+  leaseId: string;
+  propertyId: string;
+  type: InvoiceType;
+  description: string;
+  amountCents: number; // Amount in cents
+  dueDate: Date;
+  status: InvoiceStatus;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  paidAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type InvoiceType = 'rent' | 'deposit' | 'fee' | 'late_fee' | 'application_fee' | 'other';
+export type InvoiceStatus = 'due' | 'pending' | 'paid' | 'overdue' | 'void' | 'refunded';
+
+// Payment - represents completed payment transactions
 export interface Payment {
   id: string;
   leaseId: string;
   tenantId: string;
+  tenantUid: string; // User UID
   propertyId: string;
-  amount: number;
+  invoiceId?: string; // Link to invoice if applicable
+  amount: number; // Amount in cents
   type: PaymentType;
   method: PaymentMethod;
   status: PaymentStatus;
@@ -308,12 +332,14 @@ export interface Payment {
   paidDate?: Date;
   notes?: string;
   stripePaymentId?: string;
-  stripeInvoiceId?: string;
+  stripePaymentIntentId?: string;
+  stripeSessionId?: string;
+  stripeEventId?: string; // For idempotency
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type PaymentType = 'rent' | 'deposit' | 'fee' | 'late_fee' | 'other';
+export type PaymentType = 'rent' | 'deposit' | 'fee' | 'late_fee' | 'application_fee' | 'other';
 export type PaymentMethod = 'stripe' | 'check' | 'cash' | 'bank_transfer' | 'other';
 export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
 
