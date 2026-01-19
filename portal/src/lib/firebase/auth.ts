@@ -28,26 +28,33 @@ export async function signUp(
   // Update display name
   await updateProfile(user, { displayName });
 
-  // Create user profile in Firestore
-  const userProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
-    uid: user.uid,
-    email: email,
-    displayName: displayName,
-    role: role,
-    notificationPreferences: {
-      emailNotifications: true,
-      smsNotifications: false,
-      rentReminders: true,
-      maintenanceUpdates: true,
-      leaseAlerts: true,
-    },
-  };
+  // Create user profile in Firestore (may fail if security rules not configured)
+  try {
+    const userProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
+      uid: user.uid,
+      email: email,
+      displayName: displayName,
+      role: role,
+      notificationPreferences: {
+        emailNotifications: true,
+        smsNotifications: false,
+        rentReminders: true,
+        maintenanceUpdates: true,
+        leaseAlerts: true,
+      },
+    };
 
-  await setDoc(doc(db, 'users', user.uid), {
-    ...userProfile,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+    await setDoc(doc(db, 'users', user.uid), {
+      ...userProfile,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    console.log('[Auth] User profile created in Firestore');
+  } catch (error) {
+    console.warn('[Auth] Failed to create user profile in Firestore:', error);
+    // Auth succeeded but Firestore write failed - user can still log in
+    // Profile will need to be created later or security rules need to be fixed
+  }
 
   return user;
 }
@@ -74,19 +81,29 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   if (!isFirebaseConfigured) {
     return null;
   }
-  const docRef = doc(db, 'users', uid);
-  const docSnap = await getDoc(docRef);
   
-  if (docSnap.exists()) {
-    const data = docSnap.data();
-    return {
-      ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
-    } as UserProfile;
+  try {
+    console.log('[Auth] Fetching user profile for uid:', uid);
+    const docRef = doc(db, 'users', uid);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      console.log('[Auth] User profile found');
+      return {
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      } as UserProfile;
+    }
+    
+    console.log('[Auth] No user profile found, returning null');
+    return null;
+  } catch (error) {
+    console.error('[Auth] Error fetching user profile:', error);
+    // Return null on permission errors - profile will need to be created
+    return null;
   }
-  
-  return null;
 }
 
 // Update user profile

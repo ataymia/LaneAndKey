@@ -1,0 +1,137 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Users collection - users can read/write their own profile
+    match /users/{userId} {
+      // Users can read and write their own profile
+      allow read, write: if isOwner(userId);
+      // Admins can read all user profiles
+      allow read: if isAdmin();
+      // Admins can update any user (for role changes)
+      allow update: if isAdmin();
+    }
+    
+    // Properties - anyone authenticated can read, admins can write
+    match /properties/{propertyId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Leads - admins can read/write
+    match /leads/{leadId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Tours - admins can read/write, applicants can read their own
+    match /tours/{tourId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Applications - applicants can read/write their own, admins can read/write all
+    match /applications/{applicationId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.applicantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Tenants - tenants can read their own, admins can read/write all
+    match /tenants/{tenantId} {
+      allow read: if isOwner(tenantId) || isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Leases - tenants can read their own, admins can read/write all
+    match /leases/{leaseId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.tenantId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    
+    // Invoices - tenants can read their own, admins can read/write all
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.tenantId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+      // Allow tenants to update payment-related fields
+      allow update: if isAuthenticated() && 
+        resource.data.tenantId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['stripePaymentIntentId', 'stripeSessionId', 'status', 'paidAt', 'updatedAt']);
+    }
+    
+    // Payments - tenants can read/create their own, admins can read/write all
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.tenantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Maintenance tickets - tenants can read/create their own, admins can read/write all
+    match /maintenanceTickets/{ticketId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.tenantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        (resource.data.tenantId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // Messages and Conversations
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid in resource.data.participants || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        request.auth.uid in resource.data.participants;
+    }
+    
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Alerts - admins can read/write
+    match /alerts/{alertId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Document templates - admins can read/write
+    match /documentTemplates/{templateId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Admin settings - admins only
+    match /adminSettings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Households - tenants can read their own, admins can read/write all
+    match /households/{householdId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}
