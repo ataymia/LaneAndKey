@@ -131,7 +131,21 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
     callback(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, callback);
+  
+  try {
+    // Check if auth is properly initialized (not an empty placeholder object)
+    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+      console.warn('Firebase auth not properly initialized, falling back to demo mode');
+      callback(null);
+      return () => {};
+    }
+    return onAuthStateChanged(auth, callback);
+  } catch (error) {
+    console.error('Error setting up auth state listener:', error);
+    // Fallback: call with null so the app doesn't hang
+    callback(null);
+    return () => {};
+  }
 }
 
 // Get current user

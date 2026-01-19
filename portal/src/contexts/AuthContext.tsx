@@ -136,13 +136,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     // Normal Firebase auth flow
-    const unsubscribe = onAuthChange(async (currentUser) => {
-      setUser(currentUser);
-      await fetchUserProfile(currentUser);
+    let unsubscribe: (() => void) | undefined;
+    
+    try {
+      unsubscribe = onAuthChange(async (currentUser) => {
+        setUser(currentUser);
+        await fetchUserProfile(currentUser);
+        setLoading(false);
+      });
+    } catch (error) {
+      console.error('Failed to initialize auth listener:', error);
+      // Ensure loading state is cleared even on error
       setLoading(false);
-    });
+    }
+    
+    // Timeout fallback: if loading doesn't complete in 5 seconds, force it
+    const timeout = setTimeout(() => {
+      console.warn('Auth loading timeout - forcing completion');
+      setLoading(false);
+    }, 5000);
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string) => {
