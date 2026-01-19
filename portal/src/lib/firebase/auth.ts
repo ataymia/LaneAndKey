@@ -76,8 +76,8 @@ export async function logOut(): Promise<void> {
   await signOut(auth);
 }
 
-// Get user profile from Firestore
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+// Get user profile from Firestore, creating one if it doesn't exist
+export async function getUserProfile(uid: string, user?: { email: string | null; displayName: string | null }): Promise<UserProfile | null> {
   if (!isFirebaseConfigured) {
     return null;
   }
@@ -95,6 +95,36 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
       } as UserProfile;
+    }
+    
+    // Profile doesn't exist - create one for existing auth users
+    if (user?.email) {
+      console.log('[Auth] No profile found, creating one for existing user');
+      const newProfile: UserProfile = {
+        uid,
+        email: user.email,
+        displayName: user.displayName || user.email.split('@')[0],
+        role: 'applicant', // Default role for new profiles
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        notificationPreferences: {
+          emailNotifications: true,
+          smsNotifications: false,
+          rentReminders: true,
+          maintenanceUpdates: true,
+          leaseAlerts: true,
+        },
+      };
+      
+      // Save to Firestore
+      await setDoc(docRef, {
+        ...newProfile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      
+      console.log('[Auth] Created new user profile');
+      return newProfile;
     }
     
     console.log('[Auth] No user profile found, returning null');

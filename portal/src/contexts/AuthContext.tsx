@@ -113,7 +113,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Fetch user profile when user changes
   const fetchUserProfile = async (currentUser: User | null) => {
     if (currentUser) {
-      const profile = await getUserProfile(currentUser.uid);
+      // Pass user info so profile can be auto-created if missing
+      const profile = await getUserProfile(currentUser.uid, {
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+      });
       setUserProfile(profile);
     } else {
       setUserProfile(null);
