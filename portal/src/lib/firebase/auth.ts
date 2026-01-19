@@ -126,8 +126,11 @@ export async function resetPassword(email: string): Promise<void> {
 
 // Subscribe to auth state changes
 export function onAuthChange(callback: (user: User | null) => void): () => void {
+  console.log('[Auth] onAuthChange called, isFirebaseConfigured:', isFirebaseConfigured);
+  
   if (!isFirebaseConfigured) {
     // In demo mode, immediately call with null and return a no-op unsubscribe
+    console.log('[Auth] Demo mode - calling callback with null');
     callback(null);
     return () => {};
   }
@@ -135,13 +138,20 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
   try {
     // Check if auth is properly initialized (not an empty placeholder object)
     if (!auth || typeof auth.onAuthStateChanged !== 'function') {
-      console.warn('Firebase auth not properly initialized, falling back to demo mode');
+      console.warn('[Auth] Firebase auth not properly initialized, falling back to demo mode');
       callback(null);
       return () => {};
     }
-    return onAuthStateChanged(auth, callback);
+    
+    console.log('[Auth] Setting up onAuthStateChanged listener');
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('[Auth] onAuthStateChanged fired, user:', user ? user.email : null);
+      callback(user);
+    });
+    console.log('[Auth] Listener set up successfully');
+    return unsubscribe;
   } catch (error) {
-    console.error('Error setting up auth state listener:', error);
+    console.error('[Auth] Error setting up auth state listener:', error);
     // Fallback: call with null so the app doesn't hang
     callback(null);
     return () => {};

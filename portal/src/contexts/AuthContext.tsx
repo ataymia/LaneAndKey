@@ -121,38 +121,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   useEffect(() => {
+    console.log('[AuthProvider] useEffect running, isDemoMode:', isDemoMode);
+    
     // In demo mode, check for stored demo session
     if (isDemoMode) {
+      console.log('[AuthProvider] Demo mode - checking localStorage');
       const storedProfile = localStorage.getItem('demo_user_profile');
       if (storedProfile) {
         try {
           setUserProfile(JSON.parse(storedProfile));
+          console.log('[AuthProvider] Restored demo profile from localStorage');
         } catch {
           localStorage.removeItem('demo_user_profile');
         }
       }
+      console.log('[AuthProvider] Demo mode - setting loading to false');
       setLoading(false);
       return;
     }
 
     // Normal Firebase auth flow
+    console.log('[AuthProvider] Firebase mode - setting up auth listener');
     let unsubscribe: (() => void) | undefined;
     
     try {
       unsubscribe = onAuthChange(async (currentUser) => {
+        console.log('[AuthProvider] Auth callback received, user:', currentUser?.email || 'null');
         setUser(currentUser);
         await fetchUserProfile(currentUser);
+        console.log('[AuthProvider] Setting loading to false');
         setLoading(false);
       });
     } catch (error) {
-      console.error('Failed to initialize auth listener:', error);
+      console.error('[AuthProvider] Failed to initialize auth listener:', error);
       // Ensure loading state is cleared even on error
       setLoading(false);
     }
     
     // Timeout fallback: if loading doesn't complete in 5 seconds, force it
     const timeout = setTimeout(() => {
-      console.warn('Auth loading timeout - forcing completion');
+      console.warn('[AuthProvider] Auth loading timeout (5s) - forcing completion');
       setLoading(false);
     }, 5000);
 

@@ -20,6 +20,10 @@ export const isFirebaseConfigured = Boolean(
   import.meta.env.VITE_FIREBASE_PROJECT_ID
 );
 
+console.log('[Firebase Config] isFirebaseConfigured:', isFirebaseConfigured);
+console.log('[Firebase Config] API Key present:', !!import.meta.env.VITE_FIREBASE_API_KEY);
+console.log('[Firebase Config] Project ID present:', !!import.meta.env.VITE_FIREBASE_PROJECT_ID);
+
 // Validate that all required environment variables are set
 const requiredEnvVars = [
   'VITE_FIREBASE_API_KEY',
@@ -48,12 +52,17 @@ let storage: FirebaseStorage;
 
 if (isFirebaseConfigured) {
   try {
+    console.log('[Firebase Config] Initializing Firebase app...');
     app = initializeApp(firebaseConfig);
+    console.log('[Firebase Config] Getting auth...');
     auth = getAuth(app);
+    console.log('[Firebase Config] Getting firestore...');
     db = getFirestore(app);
+    console.log('[Firebase Config] Getting storage...');
     storage = getStorage(app);
+    console.log('[Firebase Config] Firebase initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize Firebase:', error);
+    console.error('[Firebase Config] Failed to initialize Firebase:', error);
     // Create placeholder objects that will throw when accessed
     // The isFirebaseConfigured check in auth.ts will prevent actual usage
     auth = {} as Auth;
@@ -61,6 +70,7 @@ if (isFirebaseConfigured) {
     storage = {} as FirebaseStorage;
   }
 } else {
+  console.log('[Firebase Config] Demo mode - using placeholder objects');
   // Demo mode - create placeholder objects
   // The isFirebaseConfigured check in auth.ts will prevent actual usage
   auth = {} as Auth;
