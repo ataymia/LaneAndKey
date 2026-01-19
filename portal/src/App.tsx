@@ -19,6 +19,7 @@ import {
   AlertsPage,
   DocumentsPage,
   SettingsPage,
+  UsersPage,
 } from './pages/admin';
 
 // Tenant pages
@@ -98,6 +99,7 @@ function App() {
             <Route path="messages" element={<MessagesPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="documents" element={<DocumentsPage />} />
+            <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           

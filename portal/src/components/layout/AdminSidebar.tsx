@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Building2,
   Users,
+  UserCog,
   FileText,
   DollarSign,
   Receipt,
@@ -38,6 +39,7 @@ const adminNavItems: NavItem[] = [
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/admin/messages' },
   { icon: <Bell size={20} />, label: 'Alerts', path: '/admin/alerts' },
   { icon: <FolderOpen size={20} />, label: 'Documents', path: '/admin/documents' },
+  { icon: <UserCog size={20} />, label: 'Users', path: '/admin/users' },
   { icon: <Settings size={20} />, label: 'Settings', path: '/admin/settings' },
 ];
 

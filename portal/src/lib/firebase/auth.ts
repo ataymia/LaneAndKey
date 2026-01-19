@@ -76,6 +76,12 @@ export async function logOut(): Promise<void> {
   await signOut(auth);
 }
 
+// List of emails that should automatically be admins
+const ADMIN_EMAILS = [
+  'ataymia@yahoo.com',
+  'laneandkey@gmail.com',
+];
+
 // Get user profile from Firestore, creating one if it doesn't exist
 export async function getUserProfile(uid: string, user?: { email: string | null; displayName: string | null }): Promise<UserProfile | null> {
   if (!isFirebaseConfigured) {
@@ -100,11 +106,18 @@ export async function getUserProfile(uid: string, user?: { email: string | null;
     // Profile doesn't exist - create one for existing auth users
     if (user?.email) {
       console.log('[Auth] No profile found, creating one for existing user');
+      
+      // Check if this email should be an admin
+      const isAdminEmail = ADMIN_EMAILS.includes(user.email.toLowerCase());
+      const role = isAdminEmail ? 'admin' : 'applicant';
+      
+      console.log('[Auth] Assigning role:', role, 'for email:', user.email);
+      
       const newProfile: UserProfile = {
         uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0],
-        role: 'applicant', // Default role for new profiles
+        role,
         createdAt: new Date(),
         updatedAt: new Date(),
         notificationPreferences: {
@@ -123,7 +136,7 @@ export async function getUserProfile(uid: string, user?: { email: string | null;
         updatedAt: serverTimestamp(),
       });
       
-      console.log('[Auth] Created new user profile');
+      console.log('[Auth] Created new user profile with role:', role);
       return newProfile;
     }
     

@@ -9,3 +9,4 @@ export { MessagesPage } from './MessagesPage';
 export { AlertsPage } from './AlertsPage';
 export { DocumentsPage } from './DocumentsPage';
 export { SettingsPage } from './SettingsPage';
+export { default as UsersPage } from './UsersPage';
