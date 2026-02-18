@@ -98,24 +98,54 @@ function submitSellForm(event) {
     event.preventDefault();
     
     const form = event.target;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : 'Submit';
+    if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Sending...'; }
+
     const formData = new FormData(form);
     const inquiry = {
         name: formData.get('name'),
         email: formData.get('email'),
-        phone: formData.get('phone'),
+        phone: formData.get('phone') || '',
         address: formData.get('address'),
         propertyType: formData.get('propertyType'),
-        message: formData.get('message')
+        message: formData.get('message') || ''
     };
     
-    try {
-        saveSellInquiry(inquiry);
+    // Submit to Firestore so it appears in admin Messages → Inquiries
+    const firestoreDoc = {
+        fields: {
+            name: { stringValue: inquiry.name || '' },
+            email: { stringValue: inquiry.email || '' },
+            phone: { stringValue: inquiry.phone },
+            interest: { stringValue: 'selling' },
+            message: { stringValue: (inquiry.address ? 'Property: ' + inquiry.address + (inquiry.propertyType ? ' (' + inquiry.propertyType + ')' : '') + '\n\n' : '') + (inquiry.message || '') },
+            status: { stringValue: 'new' },
+            createdAt: { timestampValue: new Date().toISOString() },
+            read: { booleanValue: false },
+        }
+    };
+
+    fetch('https://firestore.googleapis.com/v1/projects/laneandkey1/databases/(default)/documents/contactSubmissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(firestoreDoc),
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to submit');
+        // Also save to localStorage as backup
+        try { saveSellInquiry(inquiry); } catch(e) { /* ignore */ }
         alert('Thank you for your interest! We\'ll contact you soon to discuss selling your property.');
         closeSellForm();
-    } catch (error) {
+    })
+    .catch(error => {
         console.error('Failed to save sell inquiry:', error);
+        try { saveSellInquiry(inquiry); } catch(e) { /* ignore */ }
         alert('Sorry, there was an error submitting your inquiry. Please try again.');
-    }
+    })
+    .finally(() => {
+        if (submitButton) { submitButton.disabled = false; submitButton.textContent = originalButtonText; }
+    });
 }
 
 // Close modal when clicking outside

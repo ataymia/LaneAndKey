@@ -279,6 +279,10 @@ function submitContactForm(event) {
     event.preventDefault();
     
     const form = event.target;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : 'Send';
+    if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Sending...'; }
+
     const formData = new FormData(form);
     
     // Get the listing ID from URL
@@ -289,20 +293,45 @@ function submitContactForm(event) {
     const request = {
         name: formData.get('name'),
         email: formData.get('email'),
-        phone: formData.get('phone'),
-        message: formData.get('message'),
+        phone: formData.get('phone') || '',
+        message: formData.get('message') || '',
         listingId: listingId,
         listingAddress: listing ? listing.address : 'Unknown'
     };
     
-    try {
-        saveViewingRequest(request);
+    // Submit to Firestore so it appears in admin Messages → Inquiries
+    const firestoreDoc = {
+        fields: {
+            name: { stringValue: request.name || '' },
+            email: { stringValue: request.email || '' },
+            phone: { stringValue: request.phone },
+            interest: { stringValue: 'renting' },
+            message: { stringValue: 'Viewing Request for: ' + request.listingAddress + '\n\n' + request.message },
+            status: { stringValue: 'new' },
+            createdAt: { timestampValue: new Date().toISOString() },
+            read: { booleanValue: false },
+        }
+    };
+
+    fetch('https://firestore.googleapis.com/v1/projects/laneandkey1/databases/(default)/documents/contactSubmissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(firestoreDoc),
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to submit');
+        try { saveViewingRequest(request); } catch(e) { /* ignore */ }
         alert('Thank you for your interest! We\'ll contact you soon to schedule a viewing.');
         closeContactModal();
-    } catch (error) {
+    })
+    .catch(error => {
         console.error('Failed to save viewing request:', error);
+        try { saveViewingRequest(request); } catch(e) { /* ignore */ }
         alert('Sorry, there was an error submitting your request. Please try again.');
-    }
+    })
+    .finally(() => {
+        if (submitButton) { submitButton.disabled = false; submitButton.textContent = originalButtonText; }
+    });
 }
 
 // Close modal when clicking outside
