@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { alertService } from '../../lib/firebase/firestore';
 import type { UserProfile, Tenant, Property } from '../../types';
@@ -49,7 +49,7 @@ export function TenantsPage() {
       setError(null);
 
       // Fetch all users with role === 'tenant'
-      const usersQ = query(collection(db, 'users'), where('role', '==', 'tenant'), orderBy('createdAt', 'desc'));
+      const usersQ = query(collection(db, 'users'), where('role', '==', 'tenant'));
       const usersSnap = await getDocs(usersQ);
       const tenantUsers = usersSnap.docs.map(d => {
         const data = d.data();
@@ -60,6 +60,8 @@ export function TenantsPage() {
           updatedAt: data.updatedAt?.toDate?.() || new Date(),
         } as UserProfile;
       });
+      // Sort client-side to avoid needing composite index
+      tenantUsers.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       // Fetch tenant docs
       const tenantsSnap = await getDocs(collection(db, 'tenants'));

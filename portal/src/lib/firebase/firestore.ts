@@ -268,6 +268,9 @@ export const paymentService = {
   
   get: (id: string) => getDocument<Payment>('payments', id),
   
+  getAll: () =>
+    getDocuments<Payment>('payments', orderBy('createdAt', 'desc')),
+  
   getByProperty: (propertyId: string) =>
     getDocuments<Payment>('payments', where('propertyId', '==', propertyId), orderBy('createdAt', 'desc')),
   
@@ -507,4 +510,29 @@ export const userService = {
   
   update: (uid: string, data: Partial<UserProfile>) =>
     updateDocument<UserProfile>('users', uid, data),
+};
+
+// ==================== CONTACT SUBMISSIONS ====================
+export interface ContactSubmission {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  interest: string;
+  message: string;
+  status: 'new' | 'read' | 'replied' | 'archived';
+  read: boolean;
+  createdAt: Date;
+}
+
+export const contactSubmissionService = {
+  getAll: () =>
+    getDocuments<ContactSubmission>('contactSubmissions', orderBy('createdAt', 'desc')),
+  
+  get: (id: string) => getDocument<ContactSubmission>('contactSubmissions', id),
+  
+  update: (id: string, data: Partial<ContactSubmission>) =>
+    updateDocument<ContactSubmission>('contactSubmissions', id, data),
+  
+  delete: (id: string) => deleteDocument('contactSubmissions', id),
 };
