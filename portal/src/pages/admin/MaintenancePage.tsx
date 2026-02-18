@@ -9,9 +9,10 @@ import {
   Clock,
   CheckCircle,
   MessageSquare,
+  X,
 } from 'lucide-react';
-import { maintenanceService } from '../../lib/firebase';
-import type { MaintenanceTicket } from '../../types';
+import { maintenanceService, propertyService } from '../../lib/firebase';
+import type { MaintenanceTicket, MaintenanceCategory, MaintenancePriority, Property } from '../../types';
 import './Maintenance.css';
 
 export function MaintenancePage() {
@@ -19,8 +20,21 @@ export function MaintenancePage() {
   const [, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Create ticket modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    propertyId: '',
+    unit: '',
+    category: 'other' as MaintenanceCategory,
+    priority: 'medium' as MaintenancePriority,
+    description: '',
+  });
+
   useEffect(() => {
     loadTickets();
+    propertyService.getAll().then(setProperties).catch(() => {});
   }, []);
 
   const loadTickets = async () => {
@@ -31,6 +45,32 @@ export function MaintenancePage() {
       console.error('Error loading tickets:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.propertyId || !createForm.description) return;
+    try {
+      setCreating(true);
+      await maintenanceService.create({
+        propertyId: createForm.propertyId,
+        unit: createForm.unit || undefined,
+        category: createForm.category,
+        priority: createForm.priority,
+        description: createForm.description,
+        attachments: [],
+        status: 'new',
+        comments: [],
+      });
+      await loadTickets();
+      setShowCreate(false);
+      setCreateForm({ propertyId: '', unit: '', category: 'other', priority: 'medium', description: '' });
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      alert('Failed to create ticket.');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -66,7 +106,7 @@ export function MaintenancePage() {
           <h1>Maintenance</h1>
           <p>{tickets.length} total tickets</p>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
           <Plus size={18} />
           New Ticket
         </button>
@@ -169,6 +209,67 @@ export function MaintenancePage() {
               ? 'No tickets match this filter'
               : 'Maintenance requests will appear here'}
           </p>
+        </div>
+      )}
+
+      {/* Create Ticket Modal */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><Plus size={20} /> New Maintenance Ticket</h2>
+              <button className="modal-close" onClick={() => setShowCreate(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateTicket} className="modal-body">
+              <label className="form-label">
+                Property
+                <select value={createForm.propertyId} onChange={e => setCreateForm(f => ({ ...f, propertyId: e.target.value }))} required>
+                  <option value="">Select property…</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.address}{p.unit ? ` #${p.unit}` : ''}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-label">
+                Unit (optional)
+                <input type="text" value={createForm.unit} onChange={e => setCreateForm(f => ({ ...f, unit: e.target.value }))} placeholder="e.g. 2B" />
+              </label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <label className="form-label" style={{ flex: 1 }}>
+                  Category
+                  <select value={createForm.category} onChange={e => setCreateForm(f => ({ ...f, category: e.target.value as MaintenanceCategory }))}>
+                    <option value="plumbing">Plumbing</option>
+                    <option value="electrical">Electrical</option>
+                    <option value="hvac">HVAC</option>
+                    <option value="appliance">Appliance</option>
+                    <option value="structural">Structural</option>
+                    <option value="pest">Pest</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="form-label" style={{ flex: 1 }}>
+                  Priority
+                  <select value={createForm.priority} onChange={e => setCreateForm(f => ({ ...f, priority: e.target.value as MaintenancePriority }))}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
+                </label>
+              </div>
+              <label className="form-label">
+                Description
+                <textarea value={createForm.description} onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the issue…" rows={4} required />
+              </label>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setShowCreate(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={creating}>
+                  {creating ? 'Creating…' : 'Create Ticket'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

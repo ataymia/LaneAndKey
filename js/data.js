@@ -11,7 +11,22 @@ const DATA_KEYS = {
 
 // Initialize with sample data if needed
 function initializeData() {
-    if (!localStorage.getItem(DATA_KEYS.LISTINGS)) {
+    // If Firestore data is already cached, skip sample data
+    const existingListings = localStorage.getItem(DATA_KEYS.LISTINGS);
+    if (existingListings) {
+        try {
+            const parsed = JSON.parse(existingListings);
+            if (parsed.length > 0 && parsed[0]._source === 'firestore') {
+                // Firestore data is cached, skip sample data init
+                // Still initialize pages if needed
+                if (!localStorage.getItem(DATA_KEYS.PAGES)) {
+                    _initDefaultPages();
+                }
+                return;
+            }
+        } catch(e) { /* continue with init */ }
+    }
+    if (!existingListings) {
         const sampleListings = [
             {
                 id: '1',
@@ -93,6 +108,10 @@ function initializeData() {
         localStorage.setItem(DATA_KEYS.LISTINGS, JSON.stringify(sampleListings));
     }
 
+    _initDefaultPages();
+}
+
+function _initDefaultPages() {
     if (!localStorage.getItem(DATA_KEYS.PAGES)) {
         const defaultPages = {
             home: {

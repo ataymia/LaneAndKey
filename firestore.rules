@@ -21,9 +21,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ─── Properties (admin write, authenticated read) ───
+    // ─── Properties (admin write, public read for listings) ───
     match /properties/{propId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if isAdmin();
     }
 

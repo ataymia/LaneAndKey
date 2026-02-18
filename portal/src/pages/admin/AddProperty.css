@@ -1,0 +1,363 @@
+.add-property-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.add-property-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.header-left .btn-ghost {
+  margin-top: 0.25rem;
+}
+
+.form-message {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  font-size: 0.9375rem;
+}
+
+.form-message.success {
+  background: var(--success-light);
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.form-message.error {
+  background: var(--error-light);
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Layout */
+.property-form-layout {
+  display: flex;
+  gap: 1.5rem;
+}
+
+/* Section Nav */
+.section-nav {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+}
+
+.section-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.section-nav-item:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.section-nav-item.active {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+/* Form */
+.property-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-section {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+}
+
+.form-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.section-hint {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.subsection-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--white);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+}
+
+.form-hint a {
+  color: var(--primary-color);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Checkbox Grid */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.checkbox-label:hover {
+  background: var(--gray-50);
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: var(--primary-color);
+  width: 16px;
+  height: 16px;
+}
+
+/* Photo Upload */
+.photo-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.photo-upload-area:hover {
+  border-color: var(--primary-color);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.photo-upload-area p {
+  font-weight: 500;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.photo-upload-area span {
+  font-size: 0.8125rem;
+}
+
+.upload-progress {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--primary-color);
+}
+
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 4/3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.photo-item:hover {
+  border-color: var(--primary-color);
+}
+
+.photo-item.cover {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background: var(--primary-gradient);
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.photo-remove {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.photo-item:hover .photo-remove {
+  opacity: 1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .property-form-layout {
+    flex-direction: column;
+  }
+
+  .section-nav {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    position: static;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .section-nav-item {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .form-row,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .form-section {
+    padding: 1.25rem;
+  }
+
+  .add-property-page .page-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .header-left {
+    flex-direction: column;
+  }
+
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}

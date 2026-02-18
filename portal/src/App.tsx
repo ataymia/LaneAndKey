@@ -11,6 +11,7 @@ import { LoginPage, SignupPage } from './pages/public';
 import {
   AdminDashboard,
   PropertiesPage,
+  AddPropertyPage,
   TenantsPage,
   ApplicationsPage,
   PaymentsPage,
@@ -95,6 +96,9 @@ function App() {
           >
             <Route index element={<AdminDashboard />} />
             <Route path="properties" element={<PropertiesPage />} />
+            <Route path="properties/new" element={<AddPropertyPage />} />
+            <Route path="properties/:id" element={<AddPropertyPage />} />
+            <Route path="properties/:id/edit" element={<AddPropertyPage />} />
             <Route path="tenants" element={<TenantsPage />} />
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="payments" element={<PaymentsPage />} />

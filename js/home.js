@@ -5,8 +5,17 @@ document.addEventListener('DOMContentLoaded', function() {
     loadPageContent();
 });
 
-function loadFeaturedListings() {
-    const listings = getPublishedListings();
+// Firestore bridge callback — re-render featured listings when Firestore data arrives
+window._refreshWithFirestoreData = function(listings) {
+    if (typeof loadFeaturedListings === 'function') {
+        loadFeaturedListings(listings);
+    }
+};
+
+function loadFeaturedListings(listings) {
+    if (!listings) {
+        listings = getPublishedListings();
+    }
     const featuredListings = listings.slice(0, 3); // Show first 3 listings
     
     const grid = document.getElementById('featured-grid');

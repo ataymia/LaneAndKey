@@ -225,3 +225,67 @@ export function getCurrentUser(): User | null {
   }
   return auth.currentUser;
 }
+
+/**
+ * Admin-side user creation via Firebase Auth REST API.
+ * This does NOT sign out the current admin — it creates the user
+ * in Firebase Auth and writes a Firestore profile doc.
+ */
+export async function adminCreateUser(
+  email: string,
+  password: string,
+  displayName: string,
+  role: UserRole
+): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error('Firebase is not configured. Cannot create users in demo mode.');
+  }
+
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+  if (!apiKey) throw new Error('Missing Firebase API key');
+
+  // 1) Create the user in Firebase Auth via REST (doesn't affect current session)
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        displayName,
+        returnSecureToken: false, // don't need a token back
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json();
+    const msg = err?.error?.message || 'Failed to create user';
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const uid: string = data.localId;
+
+  // 2) Create the Firestore user profile
+  const { doc: docRef, setDoc: setDocFn, serverTimestamp: ts } = await import('firebase/firestore');
+  await setDocFn(docRef(db, 'users', uid), {
+    uid,
+    email,
+    displayName,
+    role,
+    phone: '',
+    notificationPreferences: {
+      emailNotifications: true,
+      smsNotifications: false,
+      rentReminders: true,
+      maintenanceUpdates: true,
+      leaseAlerts: true,
+    },
+    createdAt: ts(),
+    updatedAt: ts(),
+  });
+
+  return uid;
+}

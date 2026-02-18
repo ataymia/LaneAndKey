@@ -7,7 +7,6 @@ import {
   Bell,
   Palette,
   Save,
-  ExternalLink,
 } from 'lucide-react';
 import { adminSettingsService } from '../../lib/firebase';
 import { getStripeConfig } from '../../lib/stripe';
@@ -29,7 +28,8 @@ export function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState('#9BAAFF');
   const [defaultRentDueDay, setDefaultRentDueDay] = useState(1);
   const [defaultGracePeriod, setDefaultGracePeriod] = useState(5);
-  const [lateFeeAmount, setLateFeeAmount] = useState(50);
+  const [lateFeeAmount, setLateFeeAmount] = useState(25);
+  const [dailyLateFee, setDailyLateFee] = useState(10);
   const [defaultLeaseLength, setDefaultLeaseLength] = useState(12);
 
   const stripeConfig = getStripeConfig();
@@ -54,7 +54,8 @@ export function SettingsPage() {
         setPrimaryColor(data.primaryColor || '#9BAAFF');
         setDefaultRentDueDay(data.defaultRentDueDay || 1);
         setDefaultGracePeriod(data.defaultGracePeriod || 5);
-        setLateFeeAmount(data.lateFeeAmount || 50);
+        setLateFeeAmount(data.lateFeeAmount || 25);
+        setDailyLateFee((data as unknown as Record<string, unknown>).dailyLateFee as number || 10);
         setDefaultLeaseLength(data.defaultLeaseLength || 12);
       }
     } catch (error) {
@@ -91,8 +92,9 @@ export function SettingsPage() {
         defaultGracePeriod,
         lateFeeAmount,
         lateFeeType: 'fixed',
+        dailyLateFee,
         defaultLeaseLength,
-      });
+      } as Record<string, unknown>);
       setMessage('Settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -240,7 +242,7 @@ export function SettingsPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Late Fee ($)</label>
+                  <label className="form-label">Initial Late Fee ($)</label>
                   <input
                     type="number"
                     className="form-input"
@@ -248,6 +250,21 @@ export function SettingsPage() {
                     onChange={(e) => setLateFeeAmount(parseInt(e.target.value))}
                     min="0"
                   />
+                  <p className="form-hint">Charged on day {defaultGracePeriod + 1} after rent due date</p>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Daily Late Fee ($)</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={dailyLateFee}
+                    onChange={(e) => setDailyLateFee(parseInt(e.target.value))}
+                    min="0"
+                  />
+                  <p className="form-hint">Charged per day starting day {defaultGracePeriod + 2}</p>
                 </div>
               </div>
 
@@ -278,25 +295,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div className="setup-instructions">
-                <h3>Setup Instructions</h3>
-                <ol>
-                  <li>Create a Stripe account at <a href="https://stripe.com" target="_blank" rel="noopener noreferrer">stripe.com <ExternalLink size={12} /></a></li>
-                  <li>Get your publishable key from the Stripe Dashboard</li>
-                  <li>Set the <code>VITE_STRIPE_PUBLISHABLE_KEY</code> environment variable</li>
-                  <li>For backend processing, set up a Cloudflare Worker with your secret key</li>
-                  <li>Configure webhooks in Stripe to point to <code>/api/stripe/webhook</code></li>
-                </ol>
 
-                <div className="env-vars">
-                  <h4>Required Environment Variables:</h4>
-                  <ul>
-                    {stripeConfig.requiredEnvVars.map(v => (
-                      <li key={v}><code>{v}</code></li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
             </div>
           )}
 

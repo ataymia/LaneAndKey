@@ -16,6 +16,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Firestore bridge callback — re-render listings when Firestore data arrives
+window._refreshWithFirestoreData = function(listings) {
+    if (typeof loadListings === 'function') {
+        loadListings(listings);
+    }
+};
+
 function initMap() {
     // Initialize Leaflet map (free alternative to Google Maps)
     // Check if Leaflet is available

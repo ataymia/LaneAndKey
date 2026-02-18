@@ -17,16 +17,24 @@ function formatNumber(num) {
 
 // Create listing card HTML
 function createListingCard(listing) {
+    // Use cover photo (already reordered by firebase-bridge) or first available photo
     const photo = listing.photos && listing.photos.length > 0 
         ? listing.photos[0] 
         : 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\'%3E%3Crect fill=\'%23CCD5FF\' width=\'400\' height=\'300\'/%3E%3Ctext fill=\'%23FFFFFF\' font-family=\'Arial\' font-size=\'24\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ENo Image%3C/text%3E%3C/svg%3E';
+    
+    // Show "/mo" for rental properties (Firestore data)
+    const priceLabel = listing._source === 'firestore' 
+        ? `${formatPrice(listing.price)}/mo`
+        : formatPrice(listing.price);
+    
+    const cityDisplay = [listing.city, listing.state].filter(Boolean).join(', ');
     
     return `
         <div class="listing-card" onclick="viewListing('${listing.id}')">
             <img src="${photo}" alt="${listing.address}" class="listing-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'400\\' height=\\'300\\'%3E%3Crect fill=\\'%23CCD5FF\\' width=\\'400\\' height=\\'300\\'/%3E%3Ctext fill=\\'%23FFFFFF\\' font-family=\\'Arial\\' font-size=\\'24\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3ENo Image%3C/text%3E%3C/svg%3E'">
             <div class="listing-info">
-                <div class="listing-price">${formatPrice(listing.price)}</div>
-                <div class="listing-address">${listing.address}, ${listing.city}</div>
+                <div class="listing-price">${priceLabel}</div>
+                <div class="listing-address">${listing.address}, ${cityDisplay}</div>
                 <div class="listing-details">
                     <span class="listing-detail">${listing.beds} beds</span>
                     <span class="listing-detail">${listing.baths} baths</span>

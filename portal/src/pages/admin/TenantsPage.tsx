@@ -1,70 +1,217 @@
-import { Link } from 'react-router-dom';
-import { 
+import { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase/config';
+import { alertService } from '../../lib/firebase/firestore';
+import type { UserProfile, Tenant, Property } from '../../types';
+import {
   Users,
   Search,
-  Filter,
   Mail,
   Home,
-  Calendar,
   DollarSign,
+  RefreshCw,
+  Send,
+  X,
 } from 'lucide-react';
 import './Tenants.css';
 
+interface TenantRow {
+  uid: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  propertyAddress: string;
+  unit: string;
+  leaseEnd: string;
+  balance: number;
+  createdAt: Date;
+}
+
 export function TenantsPage() {
-  // Placeholder data - would come from Firestore
-  const tenants: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    property: string;
-    unit?: string;
-    leaseEnd: string;
-    balance: number;
-  }[] = [];
+  const [tenants, setTenants] = useState<TenantRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterProperty, setFilterProperty] = useState('all');
+  const [, setProperties] = useState<Property[]>([]);
+
+  // Notice modal
+  const [noticeTarget, setNoticeTarget] = useState<TenantRow | null>(null);
+  const [noticeForm, setNoticeForm] = useState({ title: '', message: '' });
+  const [sendingNotice, setSendingNotice] = useState(false);
+
+  // Expanded row
+  const [, ] = useState<string | null>(null);
+
+  const fetchTenants = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all users with role === 'tenant'
+      const usersQ = query(collection(db, 'users'), where('role', '==', 'tenant'), orderBy('createdAt', 'desc'));
+      const usersSnap = await getDocs(usersQ);
+      const tenantUsers = usersSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...data,
+          uid: d.id,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          updatedAt: data.updatedAt?.toDate?.() || new Date(),
+        } as UserProfile;
+      });
+
+      // Fetch tenant docs
+      const tenantsSnap = await getDocs(collection(db, 'tenants'));
+      const tenantDocs = tenantsSnap.docs.map(d => ({ ...d.data(), id: d.id } as Tenant));
+
+      // Fetch properties
+      const propsSnap = await getDocs(collection(db, 'properties'));
+      const propDocs = propsSnap.docs.map(d => ({ ...d.data(), id: d.id } as Property));
+      setProperties(propDocs);
+
+      // Build lookup maps
+      const propMap = new Map(propDocs.map(p => [p.id, p]));
+      const tenantDocMap = new Map(tenantDocs.map(t => [t.userId, t]));
+
+      // Merge
+      const rows: TenantRow[] = tenantUsers.map(u => {
+        const tenantDoc = tenantDocMap.get(u.uid);
+        const prop = tenantDoc?.propertyId ? propMap.get(tenantDoc.propertyId) : null;
+        return {
+          uid: u.uid,
+          displayName: u.displayName || u.email || '',
+          email: u.email,
+          phone: u.phone || '',
+          propertyAddress: prop?.address || 'Unassigned',
+          unit: prop?.unit || '',
+          leaseEnd: '', // would come from lease doc
+          balance: tenantDoc?.balance ?? 0,
+          createdAt: u.createdAt,
+        };
+      });
+
+      setTenants(rows);
+    } catch (err) {
+      console.error('Error fetching tenants:', err);
+      setError('Failed to load tenants.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTenants(); }, [fetchTenants]);
+
+  const handleSendNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noticeTarget) return;
+    try {
+      setSendingNotice(true);
+      await alertService.create({
+        userId: noticeTarget.uid,
+        type: 'general',
+        title: noticeForm.title,
+        message: noticeForm.message,
+        read: false,
+        archived: false,
+      });
+      setNoticeTarget(null);
+      setNoticeForm({ title: '', message: '' });
+      alert('Notice sent!');
+    } catch {
+      alert('Failed to send notice.');
+    } finally {
+      setSendingNotice(false);
+    }
+  };
+
+  const filteredTenants = tenants.filter(t => {
+    const term = searchTerm.toLowerCase();
+    const matchSearch =
+      t.displayName.toLowerCase().includes(term) ||
+      t.email.toLowerCase().includes(term) ||
+      t.phone.includes(term);
+    const matchProp = filterProperty === 'all' || t.propertyAddress === filterProperty;
+    return matchSearch && matchProp;
+  });
+
+  const formatCurrency = (cents: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(cents) / 100);
+
+  if (loading) {
+    return (
+      <div className="tenants-page">
+        <div className="loading-state"><div className="spinner" /><p>Loading tenants…</p></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="tenants-page">
+        <div className="error-state">
+          <p>{error}</p>
+          <button onClick={fetchTenants} className="btn btn-primary">Try Again</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tenants-page">
       <div className="page-header">
         <div>
           <h1>Tenants</h1>
-          <p>{tenants.length} total tenants</p>
+          <p>{tenants.length} total tenant{tenants.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="header-actions">
+          <button onClick={fetchTenants} className="btn btn-outline" title="Refresh">
+            <RefreshCw size={16} /> Refresh
+          </button>
         </div>
       </div>
 
       <div className="filters-bar">
         <div className="search-box">
           <Search size={18} />
-          <input type="text" placeholder="Search tenants..." />
+          <input
+            type="text"
+            placeholder="Search tenants…"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
         </div>
         <div className="filter-group">
-          <Filter size={16} />
-          <select>
+          <select value={filterProperty} onChange={e => setFilterProperty(e.target.value)}>
             <option value="all">All Properties</option>
+            {[...new Set(tenants.map(t => t.propertyAddress))].filter(Boolean).map(addr => (
+              <option key={addr} value={addr}>{addr}</option>
+            ))}
           </select>
         </div>
       </div>
 
-      {tenants.length > 0 ? (
+      {filteredTenants.length > 0 ? (
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
                 <th>Tenant</th>
                 <th>Property</th>
-                <th>Lease End</th>
+                <th>Phone</th>
                 <th>Balance</th>
+                <th>Joined</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {tenants.map(tenant => (
-                <tr key={tenant.id}>
+              {filteredTenants.map(tenant => (
+                <tr key={tenant.uid}>
                   <td>
                     <div className="tenant-info">
-                      <div className="avatar">{tenant.name.charAt(0)}</div>
+                      <div className="avatar">{tenant.displayName.charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="tenant-name">{tenant.name}</div>
+                        <div className="tenant-name">{tenant.displayName}</div>
                         <div className="tenant-contact">
                           <Mail size={12} /> {tenant.email}
                         </div>
@@ -74,26 +221,28 @@ export function TenantsPage() {
                   <td>
                     <div className="property-info">
                       <Home size={14} />
-                      {tenant.property}
+                      {tenant.propertyAddress}
                       {tenant.unit && ` #${tenant.unit}`}
                     </div>
                   </td>
-                  <td>
-                    <div className="lease-info">
-                      <Calendar size={14} />
-                      {tenant.leaseEnd}
-                    </div>
-                  </td>
+                  <td>{tenant.phone || '—'}</td>
                   <td>
                     <span className={`balance ${tenant.balance > 0 ? 'due' : ''}`}>
                       <DollarSign size={14} />
-                      {Math.abs(tenant.balance).toFixed(2)}
+                      {formatCurrency(tenant.balance)}
                     </span>
                   </td>
+                  <td>{tenant.createdAt.toLocaleDateString()}</td>
                   <td>
-                    <Link to={`/admin/tenants/${tenant.id}`} className="btn btn-sm btn-outline">
-                      View
-                    </Link>
+                    <div className="tenant-actions">
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={() => { setNoticeTarget(tenant); setNoticeForm({ title: '', message: '' }); }}
+                        title="Send notice"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -105,13 +254,41 @@ export function TenantsPage() {
           <div className="empty-state-icon">
             <Users size={32} />
           </div>
-          <h3 className="empty-state-title">No tenants yet</h3>
+          <h3 className="empty-state-title">No tenants found</h3>
           <p className="empty-state-description">
-            Tenants are created when you approve applications.
+            {searchTerm || filterProperty !== 'all'
+              ? 'No tenants match your search criteria.'
+              : 'Create tenant accounts from the Users page or approve applications.'}
           </p>
-          <Link to="/admin/applications" className="btn btn-primary">
-            View Applications
-          </Link>
+        </div>
+      )}
+
+      {/* Send Notice Modal */}
+      {noticeTarget && (
+        <div className="modal-overlay" onClick={() => setNoticeTarget(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><Send size={20} /> Send Notice</h2>
+              <button className="modal-close" onClick={() => setNoticeTarget(null)}><X size={20} /></button>
+            </div>
+            <p className="notice-to">To: <strong>{noticeTarget.displayName}</strong> ({noticeTarget.email})</p>
+            <form onSubmit={handleSendNotice} className="modal-body">
+              <label className="form-label">
+                Subject
+                <input type="text" value={noticeForm.title} onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Lease Renewal Notice" required />
+              </label>
+              <label className="form-label">
+                Message
+                <textarea value={noticeForm.message} onChange={e => setNoticeForm(f => ({ ...f, message: e.target.value }))} placeholder="Type your notice here…" rows={5} required />
+              </label>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setNoticeTarget(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={sendingNotice}>
+                  {sendingNotice ? 'Sending…' : 'Send Notice'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

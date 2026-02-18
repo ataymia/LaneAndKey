@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   FolderOpen,
   Upload,
@@ -7,15 +7,29 @@ import {
   FileText,
   FilePlus,
   Search,
+  Send,
+  X,
+  User,
 } from 'lucide-react';
-import { documentService } from '../../lib/firebase';
-import type { DocumentTemplate } from '../../types';
+import { documentService, userService } from '../../lib/firebase';
+import { uploadTemplateDocument } from '../../lib/firebase/storage';
+import { alertService } from '../../lib/firebase';
+import type { DocumentTemplate, UserProfile } from '../../types';
 import './Documents.css';
 
 export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'templates'>('all');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Send document modal
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendDoc, setSendDoc] = useState<DocumentTemplate | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -36,6 +50,87 @@ export function DocumentsPage() {
     ? documents.filter(d => d.isTemplate)
     : documents;
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadTemplateDocument(file);
+      await documentService.create({
+        name: file.name,
+        type: 'other',
+        url,
+        isTemplate: true,
+      });
+      await loadDocuments();
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert('Failed to upload document');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (doc: DocumentTemplate) => {
+    if (!confirm(`Delete "${doc.name}"?`)) return;
+    try {
+      await documentService.delete(doc.id);
+      await loadDocuments();
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Failed to delete document');
+    }
+  };
+
+  const openSendModal = async (doc: DocumentTemplate) => {
+    setSendDoc(doc);
+    setShowSendModal(true);
+    try {
+      const users = await userService.getAll();
+      setAllUsers(users);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const sendDocumentToUser = async (targetUser: UserProfile) => {
+    if (!sendDoc) return;
+    try {
+      setSendingTo(targetUser.uid);
+      // Create a document record for the user
+      await documentService.create({
+        name: sendDoc.name,
+        type: sendDoc.type,
+        url: sendDoc.url,
+        isTemplate: false,
+        tenantId: targetUser.uid,
+      });
+      // Send an alert/notification
+      await alertService.create({
+        userId: targetUser.uid,
+        type: 'general',
+        title: 'New Document Shared',
+        message: `A document "${sendDoc.name}" has been shared with you. Check your Documents page.`,
+        read: false,
+        archived: false,
+      });
+      alert(`Document sent to ${targetUser.displayName || targetUser.email}`);
+      setSendingTo(null);
+    } catch (error) {
+      console.error('Error sending document:', error);
+      alert('Failed to send document');
+      setSendingTo(null);
+    }
+  };
+
+  const filteredUsers = userSearch
+    ? allUsers.filter(u => {
+        const q = userSearch.toLowerCase();
+        return u.displayName?.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      })
+    : allUsers;
+
   return (
     <div className="documents-page">
       <div className="page-header">
@@ -43,10 +138,17 @@ export function DocumentsPage() {
           <h1>Documents & Templates</h1>
           <p>Manage lease templates and documents</p>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           <Upload size={18} />
-          Upload Document
+          {uploading ? 'Uploading...' : 'Upload Document'}
         </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleUpload}
+          style={{ display: 'none' }}
+          accept=".pdf,.doc,.docx,.txt,.jpg,.png"
+        />
       </div>
 
       {/* Folder Categories */}
@@ -124,10 +226,13 @@ export function DocumentsPage() {
                 </div>
               </div>
               <div className="document-actions">
-                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn btn-icon btn-ghost">
+                <button className="btn btn-icon btn-ghost" onClick={() => openSendModal(doc)} title="Send to User">
+                  <Send size={16} />
+                </button>
+                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn btn-icon btn-ghost" title="Download">
                   <Download size={16} />
                 </a>
-                <button className="btn btn-icon btn-ghost">
+                <button className="btn btn-icon btn-ghost" onClick={() => handleDelete(doc)} title="Delete">
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -143,10 +248,67 @@ export function DocumentsPage() {
           <p className="empty-state-description">
             Upload lease templates and other documents to get started.
           </p>
-          <button className="btn btn-primary">
+          <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>
             <FilePlus size={18} />
             Upload Document
           </button>
+        </div>
+      )}
+
+      {/* Send Document Modal */}
+      {showSendModal && sendDoc && (
+        <div className="modal-overlay" onClick={() => { setShowSendModal(false); setUserSearch(''); }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><Send size={20} /> Send Document</h2>
+              <button className="modal-close" onClick={() => { setShowSendModal(false); setUserSearch(''); }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="send-doc-info">
+                <FileText size={20} />
+                <span>{sendDoc.name}</span>
+              </div>
+              <div className="search-box" style={{ marginBottom: '1rem' }}>
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="user-picker-list">
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map(u => (
+                    <div
+                      key={u.uid}
+                      className="user-picker-item"
+                      onClick={() => sendingTo !== u.uid && sendDocumentToUser(u)}
+                    >
+                      <div className="user-picker-avatar">
+                        <User size={18} />
+                      </div>
+                      <div className="user-picker-info">
+                        <div className="user-picker-name">{u.displayName || 'No Name'}</div>
+                        <div className="user-picker-email">{u.email}</div>
+                      </div>
+                      <span className={`badge badge-${u.role === 'admin' ? 'primary' : u.role === 'tenant' ? 'success' : 'info'}`}>
+                        {u.role}
+                      </span>
+                      {sendingTo === u.uid && <span style={{ fontSize: '0.8125rem', color: '#9ca3af' }}>Sending...</span>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-users-found">
+                    <p>No users found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

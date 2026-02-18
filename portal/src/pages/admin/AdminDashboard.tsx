@@ -141,27 +141,27 @@ export function AdminDashboard() {
     {
       icon: <Plus size={20} />,
       label: 'Add Property',
-      link: '/admin/properties/new',
+      link: '/admin/properties',
     },
     {
       icon: <UserPlus size={20} />,
-      label: 'Invite Applicant',
-      link: '/admin/applications/invite',
+      label: 'Create User',
+      link: '/admin/users',
     },
     {
       icon: <FileText size={20} />,
-      label: 'Create Lease',
-      link: '/admin/leases/new',
+      label: 'Applications',
+      link: '/admin/applications',
     },
     {
       icon: <Receipt size={20} />,
-      label: 'Record Payment',
-      link: '/admin/payments/new',
+      label: 'Statements',
+      link: '/admin/statements',
     },
     {
       icon: <Wrench size={20} />,
-      label: 'New Ticket',
-      link: '/admin/maintenance/new',
+      label: 'Maintenance',
+      link: '/admin/maintenance',
     },
   ];
 

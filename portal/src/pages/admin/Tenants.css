@@ -3,11 +3,53 @@
   margin: 0 auto;
 }
 
+.tenants-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.tenants-page .header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .filters-bar {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
+}
+
+.filters-bar .search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.filters-bar .search-box input {
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  flex: 1;
+  font-size: 14px;
+}
+
+.filters-bar .filter-group select {
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
 }
 
 .tenant-info {
@@ -18,7 +60,7 @@
 
 .tenant-name {
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-primary, #1a1a2e);
 }
 
 .tenant-contact {
@@ -26,7 +68,7 @@
   align-items: center;
   gap: 0.25rem;
   font-size: 0.8125rem;
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
 }
 
 .property-info,
@@ -34,7 +76,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #4b5563);
 }
 
 .balance {
@@ -42,9 +84,26 @@
   align-items: center;
   gap: 0.25rem;
   font-weight: 500;
-  color: var(--success-color);
+  color: var(--success-color, #059669);
 }
 
 .balance.due {
-  color: var(--error-color);
+  color: var(--error-color, #dc2626);
 }
+
+.tenant-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tenants-page .loading-state,
+.tenants-page .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+/* Reuse modal styles from Users.css */
