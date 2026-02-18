@@ -7,12 +7,25 @@
  * Handles Stripe webhook events for payment processing.
  * Verifies webhook signature and processes payment events.
  * 
+ * On successful payment (checkout.session.completed):
+ * - Writes a payment ledger entry to the statement (idempotent: pay_{paymentIntentId})
+ * - Recomputes statement balance and marks paid if <= 0
+ * - Creates a payment record in the payments collection
+ * 
  * Environment Variables Required:
  * - STRIPE_SECRET_KEY: Stripe secret key
  * - STRIPE_WEBHOOK_SECRET: Stripe webhook signing secret
  * - FIREBASE_PROJECT_ID: Firebase project ID
- * - FIREBASE_SERVICE_ACCOUNT_KEY: Firebase service account (optional, for Firestore writes)
  */
+
+import {
+  getDocument,
+  setDocument,
+  updateDocument,
+  createDocument,
+  getSubcollection,
+  documentExists,
+} from '../lib/firestore-rest.js';
 
 // Stripe API base URL
 const STRIPE_API_URL = 'https://api.stripe.com/v1';
@@ -68,18 +81,12 @@ function uint8ArrayToHex(arr) {
 
 /**
  * Verify Stripe webhook signature
- * 
- * @param {string} payload - Raw request body
- * @param {string} signature - Stripe-Signature header
- * @param {string} secret - Webhook signing secret
- * @returns {boolean} - Whether signature is valid
  */
 async function verifyStripeSignature(payload, signature, secret) {
   if (!signature || !secret) {
     return false;
   }
   
-  // Parse the signature header
   const elements = signature.split(',');
   const sigData = {};
   
@@ -106,12 +113,10 @@ async function verifyStripeSignature(payload, signature, secret) {
     return false;
   }
   
-  // Compute expected signature
   const signedPayload = `${sigData.timestamp}.${payload}`;
   const expectedSig = await computeHmacSha256(secret, signedPayload);
   const expectedSigHex = uint8ArrayToHex(expectedSig);
   
-  // Compare signatures
   const actualSigBytes = hexToUint8Array(sigData.signature);
   const expectedSigBytes = hexToUint8Array(expectedSigHex);
   
@@ -120,12 +125,9 @@ async function verifyStripeSignature(payload, signature, secret) {
 
 /**
  * Store for processed event IDs (for idempotency)
- * In production, this should be stored in a database like Firestore
- * For now, we'll use a simple in-memory check with KV storage if available
  */
 async function isEventProcessed(eventId, env) {
   if (env.PROCESSED_EVENTS) {
-    // Use Cloudflare KV if available
     const processed = await env.PROCESSED_EVENTS.get(eventId);
     return processed !== null;
   }
@@ -134,47 +136,142 @@ async function isEventProcessed(eventId, env) {
 
 async function markEventProcessed(eventId, env) {
   if (env.PROCESSED_EVENTS) {
-    // Store with 7-day TTL
     await env.PROCESSED_EVENTS.put(eventId, 'processed', { expirationTtl: 604800 });
   }
 }
 
 /**
  * Process checkout.session.completed event
+ * 
+ * Writes a ledger entry and recomputes statement balance
  */
 async function handleCheckoutCompleted(session, env) {
-  console.log('Processing checkout.session.completed:', session.id);
-  
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.error('FIREBASE_PROJECT_ID not set, cannot write to Firestore');
+    return { success: false, action: 'checkout_completed', error: 'Missing project ID' };
+  }
+
   const metadata = session.metadata || {};
   const tenantUid = metadata.tenantUid;
   const type = metadata.type;
+  const statementId = metadata.statementId;
   const invoiceId = metadata.invoiceId;
   const leaseId = metadata.leaseId;
-  
-  // Log the payment details (in production, write to Firestore)
+  const month = metadata.month;
+  const paymentIntentId = session.payment_intent;
+  const amountReceived = session.amount_total; // cents
+  const now = new Date().toISOString();
+
   console.log('Payment completed:', {
     sessionId: session.id,
-    paymentIntentId: session.payment_intent,
-    amount: session.amount_total,
-    currency: session.currency,
-    customerEmail: session.customer_email,
+    paymentIntentId,
+    amount: amountReceived,
     tenantUid,
     type,
-    invoiceId,
-    leaseId,
+    statementId,
   });
-  
-  // TODO: Write to Firestore
-  // In a production environment, you would:
-  // 1. Update the invoice status to 'paid'
-  // 2. Create a payment record
-  // 3. Send confirmation email to tenant
-  // 4. Create an alert for admin
-  
-  // Example Firestore write (requires Firebase Admin or REST API):
-  // await updateInvoice(invoiceId, { status: 'paid', paidAt: new Date(), stripeSessionId: session.id });
-  // await createPayment({ tenantUid, invoiceId, amount: session.amount_total, ... });
-  
+
+  // 1. If this is a statement-based rent payment, write a ledger entry
+  if (statementId && type === 'rent') {
+    const entryId = `pay_${paymentIntentId}`;
+    
+    // Idempotent: only write if entry doesn't exist
+    const exists = await documentExists(
+      projectId,
+      `rentStatements/${statementId}/ledger`,
+      entryId
+    );
+
+    if (!exists) {
+      // Write ledger entry (negative amount = payment)
+      await setDocument(
+        projectId,
+        `rentStatements/${statementId}/ledger`,
+        entryId,
+        {
+          type: 'payment',
+          label: 'Payment',
+          amountCents: -Math.abs(amountReceived),
+          effectiveDate: now.split('T')[0],
+          notes: `Stripe payment ${paymentIntentId}`,
+          stripePaymentIntentId: paymentIntentId,
+          stripeSessionId: session.id,
+          createdByUid: tenantUid || 'system',
+          createdAt: now,
+        }
+      );
+
+      // Recompute balance
+      const allEntries = await getSubcollection(
+        projectId,
+        `rentStatements/${statementId}`,
+        'ledger'
+      );
+      const newBalance = allEntries.reduce((sum, e) => sum + (e.amountCents || 0), 0);
+
+      const updateData = {
+        balanceCents: newBalance,
+        updatedAt: now,
+      };
+      if (newBalance <= 0) {
+        updateData.status = 'paid';
+        updateData.paidAt = now;
+      }
+
+      await updateDocument(projectId, 'rentStatements', statementId, updateData);
+      console.log(`Statement ${statementId} updated: balance=${newBalance}`);
+    } else {
+      console.log(`Ledger entry ${entryId} already exists, skipping (idempotent)`);
+    }
+  }
+
+  // 2. If invoice-based payment, update the invoice
+  if (invoiceId && invoiceId !== '') {
+    try {
+      await updateDocument(projectId, 'invoices', invoiceId, {
+        status: 'paid',
+        paidAt: now,
+        stripeSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+      });
+      console.log(`Invoice ${invoiceId} marked as paid`);
+    } catch (err) {
+      console.error('Failed to update invoice:', err);
+    }
+  }
+
+  // 3. Create a payment record (always, for audit trail)
+  const paymentDocId = `stripe_${paymentIntentId}`;
+  try {
+    const exists = await documentExists(projectId, 'payments', paymentDocId);
+    if (!exists) {
+      await setDocument(projectId, 'payments', paymentDocId, {
+        tenantUid: tenantUid || '',
+        tenantId: tenantUid || '',
+        leaseId: leaseId || '',
+        propertyId: '',
+        invoiceId: invoiceId || '',
+        statementId: statementId || '',
+        amount: amountReceived,
+        type: type || 'other',
+        method: 'stripe',
+        status: 'completed',
+        dueDate: now,
+        paidDate: now,
+        stripePaymentId: paymentIntentId,
+        stripePaymentIntentId: paymentIntentId,
+        stripeSessionId: session.id,
+        stripeEventId: session.id,
+        createdAt: now,
+        updatedAt: now,
+      });
+      console.log(`Payment record ${paymentDocId} created`);
+    }
+  } catch (err) {
+    console.error('Failed to create payment record:', err);
+  }
+
   return { success: true, action: 'checkout_completed' };
 }
 
@@ -183,16 +280,7 @@ async function handleCheckoutCompleted(session, env) {
  */
 async function handlePaymentSucceeded(paymentIntent, env) {
   console.log('Processing payment_intent.succeeded:', paymentIntent.id);
-  
-  const metadata = paymentIntent.metadata || {};
-  
-  console.log('Payment intent succeeded:', {
-    paymentIntentId: paymentIntent.id,
-    amount: paymentIntent.amount,
-    currency: paymentIntent.currency,
-    metadata,
-  });
-  
+  // Most logic is handled by checkout.session.completed
   return { success: true, action: 'payment_succeeded' };
 }
 
@@ -200,6 +288,7 @@ async function handlePaymentSucceeded(paymentIntent, env) {
  * Process payment_intent.payment_failed event
  */
 async function handlePaymentFailed(paymentIntent, env) {
+  const projectId = env.FIREBASE_PROJECT_ID;
   console.log('Processing payment_intent.payment_failed:', paymentIntent.id);
   
   const metadata = paymentIntent.metadata || {};
@@ -212,9 +301,28 @@ async function handlePaymentFailed(paymentIntent, env) {
     errorCode: lastError?.code,
     metadata,
   });
-  
-  // TODO: Update invoice status to reflect failed payment
-  // TODO: Create alert for tenant and admin
+
+  // Create a failed payment record for audit
+  if (projectId) {
+    try {
+      const paymentDocId = `stripe_failed_${paymentIntent.id}`;
+      await setDocument(projectId, 'payments', paymentDocId, {
+        tenantUid: metadata.tenantUid || '',
+        tenantId: metadata.tenantUid || '',
+        statementId: metadata.statementId || '',
+        amount: paymentIntent.amount,
+        type: metadata.type || 'other',
+        method: 'stripe',
+        status: 'failed',
+        notes: lastError?.message || 'Payment failed',
+        stripePaymentIntentId: paymentIntent.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Failed to record failed payment:', err);
+    }
+  }
   
   return { success: true, action: 'payment_failed' };
 }
@@ -223,16 +331,12 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   
   try {
-    // Check required environment variables
     if (!env.STRIPE_WEBHOOK_SECRET) {
       console.error('Stripe webhook secret not configured');
       return new Response('Webhook secret not configured', { status: 500 });
     }
     
-    // Get the raw body for signature verification
     const payload = await request.text();
-    
-    // Get the Stripe signature header
     const signature = request.headers.get('Stripe-Signature');
     
     if (!signature) {
@@ -240,7 +344,6 @@ export async function onRequestPost(context) {
       return new Response('No signature', { status: 400 });
     }
     
-    // Verify the webhook signature
     const isValid = await verifyStripeSignature(payload, signature, env.STRIPE_WEBHOOK_SECRET);
     
     if (!isValid) {
@@ -248,12 +351,11 @@ export async function onRequestPost(context) {
       return new Response('Invalid signature', { status: 400 });
     }
     
-    // Parse the event
     const event = JSON.parse(payload);
     
     console.log('Received Stripe event:', event.type, event.id);
     
-    // Check idempotency - don't process the same event twice
+    // Idempotency check
     const alreadyProcessed = await isEventProcessed(event.id, env);
     if (alreadyProcessed) {
       console.log('Event already processed:', event.id);
@@ -263,7 +365,6 @@ export async function onRequestPost(context) {
       });
     }
     
-    // Process the event based on type
     let result = { success: true, action: 'ignored' };
     
     switch (event.type) {
@@ -288,19 +389,21 @@ export async function onRequestPost(context) {
         console.log('Charge failed:', event.data.object.id);
         result = { success: true, action: 'charge_failed' };
         break;
+
+      case 'charge.refunded':
+        console.log('Charge refunded:', event.data.object.id);
+        // TODO: If needed, reverse the ledger entry
+        result = { success: true, action: 'charge_refunded' };
+        break;
         
       default:
         console.log('Unhandled event type:', event.type);
         result = { success: true, action: 'unhandled' };
     }
     
-    // Mark event as processed for idempotency
     await markEventProcessed(event.id, env);
     
-    return new Response(JSON.stringify({ 
-      received: true, 
-      ...result 
-    }), {
+    return new Response(JSON.stringify({ received: true, ...result }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

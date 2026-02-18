@@ -4,6 +4,7 @@ export { TenantsPage } from './TenantsPage';
 export { ApplicationsPage } from './ApplicationsPage';
 export { PaymentsPage } from './PaymentsPage';
 export { InvoicesPage } from './InvoicesPage';
+export { StatementsPage } from './StatementsPage';
 export { MaintenancePage } from './MaintenancePage';
 export { MessagesPage } from './MessagesPage';
 export { AlertsPage } from './AlertsPage';

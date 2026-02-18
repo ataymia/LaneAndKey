@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts';
 import { ProtectedRoute } from './components/auth';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminLayout, TenantLayout, ApplicantLayout } from './components/layout';
 
 // Public pages
@@ -14,6 +15,7 @@ import {
   ApplicationsPage,
   PaymentsPage,
   InvoicesPage,
+  StatementsPage,
   MaintenancePage,
   MessagesPage,
   AlertsPage,
@@ -25,11 +27,12 @@ import {
 // Tenant pages
 import {
   TenantDashboard,
-  TenantLeasePage,
+  TenantLeaseSignPage,
   TenantPaymentsPage,
+  TenantRentHistoryPage,
+  TenantDocumentsUploadPage,
   PaymentSuccessPage,
   TenantMaintenancePage,
-  TenantDocumentsPage,
   TenantMessagesPage,
   TenantAlertsPage,
   TenantSettingsPage,
@@ -70,9 +73,10 @@ function HomeRedirect() {
 
 function App() {
   return (
-    <BrowserRouter basename="/portal">
-      <AuthProvider>
-        <Routes>
+    <ErrorBoundary>
+      <BrowserRouter basename="/portal">
+        <AuthProvider>
+          <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
@@ -95,6 +99,7 @@ function App() {
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="statements" element={<StatementsPage />} />
             <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="messages" element={<MessagesPage />} />
             <Route path="alerts" element={<AlertsPage />} />
@@ -113,11 +118,12 @@ function App() {
             }
           >
             <Route index element={<TenantDashboard />} />
-            <Route path="lease" element={<TenantLeasePage />} />
+            <Route path="lease" element={<TenantLeaseSignPage />} />
             <Route path="payments" element={<TenantPaymentsPage />} />
             <Route path="payments/success" element={<PaymentSuccessPage />} />
+            <Route path="rent-history" element={<TenantRentHistoryPage />} />
             <Route path="maintenance" element={<TenantMaintenancePage />} />
-            <Route path="documents" element={<TenantDocumentsPage />} />
+            <Route path="documents" element={<TenantDocumentsUploadPage />} />
             <Route path="messages" element={<TenantMessagesPage />} />
             <Route path="alerts" element={<TenantAlertsPage />} />
             <Route path="settings" element={<TenantSettingsPage />} />
@@ -144,6 +150,7 @@ function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+  </ErrorBoundary>
   );
 }
 

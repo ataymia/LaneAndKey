@@ -79,7 +79,7 @@ export async function logOut(): Promise<void> {
 // List of emails that should automatically be admins
 const ADMIN_EMAILS = [
   'ataymia@yahoo.com',
-  'laneandkey@gmail.com',
+  'help@laneandkey.com',
 ];
 
 // Get user profile from Firestore, creating one if it doesn't exist

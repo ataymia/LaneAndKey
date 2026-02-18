@@ -17,6 +17,7 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 import './Sidebar.css';
@@ -35,6 +36,7 @@ const adminNavItems: NavItem[] = [
   { icon: <FileText size={20} />, label: 'Applications', path: '/admin/applications' },
   { icon: <DollarSign size={20} />, label: 'Payments', path: '/admin/payments' },
   { icon: <Receipt size={20} />, label: 'Invoices', path: '/admin/invoices' },
+  { icon: <ClipboardList size={20} />, label: 'Statements', path: '/admin/statements' },
   { icon: <Wrench size={20} />, label: 'Maintenance', path: '/admin/maintenance' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/admin/messages' },
   { icon: <Bell size={20} />, label: 'Alerts', path: '/admin/alerts' },

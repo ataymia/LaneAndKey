@@ -365,7 +365,7 @@ function getSiteSettings() {
         const defaultSettings = {
             siteName: 'Lane & Key Properties',
             tagline: 'Every Lane leads you home.',
-            email: 'laneandkey@gmail.com',
+            email: 'help@laneandkey.com',
             phone: '(623) 340-9861',
             officeHours: {
                 weekday: 'Monday - Friday: 9:00 AM - 6:00 PM',

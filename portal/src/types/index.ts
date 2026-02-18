@@ -461,3 +461,67 @@ export interface AdminSettings {
   
   updatedAt: Date;
 }
+
+// ==================== RENT STATEMENTS + LEDGER ====================
+
+export type RentStatementStatus = 'open' | 'paid' | 'void';
+
+export interface RentStatement {
+  id: string;
+  leaseId: string;
+  tenantUid: string;
+  month: string; // YYYY-MM
+  status: RentStatementStatus;
+  dueDate: string; // YYYY-MM-DD
+  rentChargeCents: number;
+  balanceCents: number; // server-maintained: SUM(ledger.amountCents)
+  lateFeesEnabled: boolean;
+  lateFeesThroughDate?: string | null; // YYYY-MM-DD for idempotency
+  createdAt: Date;
+  updatedAt: Date;
+  paidAt?: Date | null;
+}
+
+export type LedgerEntryType = 'charge' | 'fee' | 'payment' | 'credit' | 'adjustment';
+
+export interface LedgerEntry {
+  id: string;
+  type: LedgerEntryType;
+  label: string;
+  amountCents: number; // positive for charges/fees; negative for payments/credits
+  effectiveDate: string; // YYYY-MM-DD
+  notes?: string;
+  stripePaymentIntentId?: string;
+  stripeSessionId?: string;
+  createdByUid: string; // "system" or UID
+  createdAt: Date;
+}
+
+// ==================== PORTAL DOCUMENTS ====================
+
+export type PortalDocCategory = 'lease' | 'pay_stub' | 'id' | 'bank_statement' | 'tax_return' | 'other';
+export type PortalDocStatus = 'pending' | 'approved' | 'rejected' | 'pending_signature' | 'signed' | 'uploaded' | 'sent' | 'viewed';
+
+export interface PortalDocument {
+  id: string;
+  ownerUid: string;       // the user the doc belongs to
+  uploadedByUid: string;  // who uploaded
+  roleScope?: 'applicant' | 'tenant';
+  category: PortalDocCategory;
+  fileName: string;
+  originalFilePath: string; // Firebase Storage path
+  status: PortalDocStatus;
+  requiresSignature: boolean;
+  signedFilePath?: string;  // Storage path for signed PDF
+  signatureHash?: string;   // SHA-256 of signed PDF
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DocumentEvent {
+  id: string;
+  type: string;
+  actorUid: string;
+  timestamp: Date;
+  metadata?: Record<string, string>;
+}

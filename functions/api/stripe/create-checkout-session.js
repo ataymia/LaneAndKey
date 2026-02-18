@@ -4,7 +4,11 @@
  * 
  * POST /api/stripe/create-checkout-session
  * 
- * Creates a Stripe Checkout Session for rent, deposit, or fee payments.
+ * Creates a Stripe Checkout Session for:
+ * - Rent payments (partial allowed, tied to a rent statement)
+ * - Application fees
+ * - Deposits and other fees
+ * 
  * Requires Firebase authentication.
  * 
  * Environment Variables Required:
@@ -14,6 +18,7 @@
  */
 
 import { authenticateRequest } from '../lib/firebase-verify.js';
+import { getDocument, queryDocuments } from '../lib/firestore-rest.js';
 
 // Stripe API base URL
 const STRIPE_API_URL = 'https://api.stripe.com/v1';
@@ -72,6 +77,14 @@ function buildStripeBody(params, prefix = '') {
   return body;
 }
 
+/**
+ * Get user role from Firestore
+ */
+async function getUserRole(projectId, uid) {
+  const user = await getDocument(projectId, 'users', uid);
+  return user?.role || 'applicant';
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   
@@ -95,14 +108,18 @@ export async function onRequestPost(context) {
     
     // Authenticate the request
     const user = await authenticateRequest(request, env);
+    const projectId = env.FIREBASE_PROJECT_ID;
+    const role = await getUserRole(projectId, user.uid);
     
     // Parse request body
     const body = await request.json();
     const { 
-      invoiceId, 
-      type, // 'rent', 'deposit', 'fee', 'late_fee', 'application_fee'
+      statementId,    // for rent payments tied to a statement
+      invoiceId,      // for legacy invoice-based payments
+      type,           // 'rent' | 'application_fee' | 'deposit' | 'fee' | 'late_fee'
       leaseId,
-      amount, // Amount in cents - only used for admin-created ad-hoc payments
+      amount,         // Amount in cents (validated server-side)
+      amountCents,    // Alias for amount
       description,
       metadata = {}
     } = body;
@@ -111,39 +128,81 @@ export async function onRequestPost(context) {
     if (!type) {
       return new Response(JSON.stringify({
         error: 'Payment type is required'
-      }), {
-        status: 400,
-        headers: corsHeaders,
-      });
+      }), { status: 400, headers: corsHeaders });
+    }
+
+    // Role-based access control
+    if (type === 'application_fee' && role !== 'applicant' && role !== 'admin') {
+      return new Response(JSON.stringify({
+        error: 'Only applicants can pay application fees'
+      }), { status: 403, headers: corsHeaders });
+    }
+    if (type === 'rent' && role !== 'tenant' && role !== 'admin') {
+      return new Response(JSON.stringify({
+        error: 'Only tenants can pay rent'
+      }), { status: 403, headers: corsHeaders });
+    }
+
+    let paymentAmount = amountCents || amount;
+    let paymentDescription = description;
+    let paymentMetadata = { ...metadata, tenantUid: user.uid, type };
+
+    // ─── Statement-based rent payment ──────────────────────
+    if (statementId && type === 'rent') {
+      const statement = await getDocument(projectId, 'rentStatements', statementId);
+      
+      if (!statement) {
+        return new Response(JSON.stringify({ error: 'Statement not found' }), {
+          status: 404, headers: corsHeaders,
+        });
+      }
+
+      // Verify ownership
+      if (role !== 'admin' && statement.tenantUid !== user.uid) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 403, headers: corsHeaders,
+        });
+      }
+
+      // Verify statement is still open
+      if (statement.status !== 'open') {
+        return new Response(JSON.stringify({ error: 'Statement is already paid or void' }), {
+          status: 400, headers: corsHeaders,
+        });
+      }
+
+      // Validate amount with server-side bounds
+      const maxAmount = statement.balanceCents;
+      const minAmount = 100; // $1 minimum
+
+      if (!paymentAmount || paymentAmount < minAmount) {
+        return new Response(JSON.stringify({
+          error: `Minimum payment is $1.00`
+        }), { status: 400, headers: corsHeaders });
+      }
+
+      if (paymentAmount > maxAmount) {
+        return new Response(JSON.stringify({
+          error: `Maximum payment for this statement is $${(maxAmount / 100).toFixed(2)}`
+        }), { status: 400, headers: corsHeaders });
+      }
+
+      paymentDescription = paymentDescription || `Rent Payment - ${statement.month}`;
+      paymentMetadata.statementId = statementId;
+      paymentMetadata.month = statement.month;
+      paymentMetadata.leaseId = statement.leaseId;
+      paymentMetadata.amountCents = String(paymentAmount);
     }
     
-    // For production, you would fetch the invoice or lease from Firestore
-    // to get the actual amount (never trust client-sent amounts for regular payments)
-    // Here we'll validate that amount is provided and reasonable
-    
-    let paymentAmount = amount;
-    let paymentDescription = description;
-    
-    // Default descriptions by type
+    // ─── Default descriptions ──────────────────────────────
     if (!paymentDescription) {
       switch (type) {
-        case 'rent':
-          paymentDescription = 'Rent Payment';
-          break;
-        case 'deposit':
-          paymentDescription = 'Security Deposit';
-          break;
-        case 'fee':
-          paymentDescription = 'Fee Payment';
-          break;
-        case 'late_fee':
-          paymentDescription = 'Late Fee';
-          break;
-        case 'application_fee':
-          paymentDescription = 'Application Fee';
-          break;
-        default:
-          paymentDescription = 'Payment';
+        case 'rent': paymentDescription = 'Rent Payment'; break;
+        case 'deposit': paymentDescription = 'Security Deposit'; break;
+        case 'fee': paymentDescription = 'Fee Payment'; break;
+        case 'late_fee': paymentDescription = 'Late Fee'; break;
+        case 'application_fee': paymentDescription = 'Application Fee'; break;
+        default: paymentDescription = 'Payment';
       }
     }
     
@@ -151,26 +210,24 @@ export async function onRequestPost(context) {
     if (!paymentAmount || typeof paymentAmount !== 'number' || paymentAmount <= 0) {
       return new Response(JSON.stringify({
         error: 'Valid payment amount is required'
-      }), {
-        status: 400,
-        headers: corsHeaders,
-      });
+      }), { status: 400, headers: corsHeaders });
     }
     
-    // Maximum amount check (reasonable limit of $50,000)
+    // Max $50,000
     if (paymentAmount > 5000000) {
       return new Response(JSON.stringify({
         error: 'Payment amount exceeds maximum allowed'
-      }), {
-        status: 400,
-        headers: corsHeaders,
-      });
+      }), { status: 400, headers: corsHeaders });
     }
     
     // Build success and cancel URLs
     const baseUrl = env.APP_BASE_URL || 'https://laneandkeyproperties.com';
-    const successUrl = `${baseUrl}/portal/tenant/payments/success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/portal/tenant/payments?canceled=true`;
+    const successUrl = type === 'application_fee'
+      ? `${baseUrl}/portal/applicant/applications?payment=success&session_id={CHECKOUT_SESSION_ID}`
+      : `${baseUrl}/portal/tenant/payments/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = type === 'application_fee'
+      ? `${baseUrl}/portal/applicant/applications?payment=canceled`
+      : `${baseUrl}/portal/tenant/payments?canceled=true`;
     
     // Prepare Stripe Checkout Session parameters
     const sessionParams = {
@@ -192,20 +249,9 @@ export async function onRequestPost(context) {
       success_url: successUrl,
       cancel_url: cancelUrl,
       customer_email: user.email,
-      metadata: {
-        tenantUid: user.uid,
-        type: type,
-        invoiceId: invoiceId || '',
-        leaseId: leaseId || '',
-        ...metadata,
-      },
+      metadata: paymentMetadata,
       payment_intent_data: {
-        metadata: {
-          tenantUid: user.uid,
-          type: type,
-          invoiceId: invoiceId || '',
-          leaseId: leaseId || '',
-        },
+        metadata: paymentMetadata,
       },
     };
     
@@ -232,7 +278,6 @@ export async function onRequestPost(context) {
   } catch (error) {
     console.error('Error creating checkout session:', error);
     
-    // Determine appropriate error response
     let status = 500;
     let message = 'Internal server error';
     
@@ -246,9 +291,7 @@ export async function onRequestPost(context) {
       message = error.message;
     }
     
-    return new Response(JSON.stringify({
-      error: message,
-    }), {
+    return new Response(JSON.stringify({ error: message }), {
       status,
       headers: corsHeaders,
     });

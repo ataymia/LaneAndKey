@@ -81,6 +81,7 @@ interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  profileError: string | null;
   isDemoMode: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -109,18 +110,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // Fetch user profile when user changes
   const fetchUserProfile = async (currentUser: User | null) => {
     if (currentUser) {
-      // Pass user info so profile can be auto-created if missing
-      const profile = await getUserProfile(currentUser.uid, {
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-      });
-      setUserProfile(profile);
+      try {
+        setProfileError(null);
+        // Pass user info so profile can be auto-created if missing
+        const profile = await getUserProfile(currentUser.uid, {
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+        });
+        setUserProfile(profile);
+        if (!profile) {
+          setProfileError('Could not load your profile. Please try again.');
+        }
+      } catch (err) {
+        console.error('[AuthProvider] Profile fetch error:', err);
+        setProfileError(err instanceof Error ? err.message : 'Failed to load profile');
+        setUserProfile(null);
+      }
     } else {
       setUserProfile(null);
+      setProfileError(null);
     }
   };
 
@@ -152,9 +165,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       unsubscribe = onAuthChange(async (currentUser) => {
         console.log('[AuthProvider] Auth callback received, user:', currentUser?.email || 'null');
         setUser(currentUser);
-        await fetchUserProfile(currentUser);
-        console.log('[AuthProvider] Setting loading to false');
-        setLoading(false);
+        try {
+          await fetchUserProfile(currentUser);
+        } catch (err) {
+          console.error('[AuthProvider] Profile fetch failed in callback:', err);
+        } finally {
+          console.log('[AuthProvider] Setting loading to false');
+          setLoading(false);
+        }
       });
     } catch (error) {
       console.error('[AuthProvider] Failed to initialize auth listener:', error);
@@ -254,6 +272,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     userProfile,
     loading,
+    profileError,
     isDemoMode,
     signUp,
     signIn,

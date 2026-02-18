@@ -73,8 +73,10 @@ export type PaymentType = 'rent' | 'deposit' | 'fee' | 'late_fee' | 'application
  */
 export interface CreateCheckoutSessionRequest {
   type: PaymentType;
-  amount: number; // Amount in cents
+  amount?: number; // Amount in cents (alias for amountCents)
+  amountCents?: number; // Amount in cents
   description?: string;
+  statementId?: string; // For statement-based rent payments
   invoiceId?: string;
   leaseId?: string;
   metadata?: Record<string, string>;

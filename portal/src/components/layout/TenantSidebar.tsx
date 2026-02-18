@@ -10,6 +10,7 @@ import {
   Settings,
   FolderOpen,
   LogOut,
+  History,
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -24,6 +25,7 @@ const tenantNavItems: NavItem[] = [
   { icon: <Home size={20} />, label: 'Dashboard', path: '/tenant' },
   { icon: <FileText size={20} />, label: 'My Lease', path: '/tenant/lease' },
   { icon: <CreditCard size={20} />, label: 'Payments', path: '/tenant/payments' },
+  { icon: <History size={20} />, label: 'Rent History', path: '/tenant/rent-history' },
   { icon: <Wrench size={20} />, label: 'Maintenance', path: '/tenant/maintenance' },
   { icon: <FolderOpen size={20} />, label: 'Documents', path: '/tenant/documents' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/tenant/messages' },
