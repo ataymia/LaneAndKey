@@ -58,13 +58,34 @@ function convertTimestamps<T extends DocumentData>(data: DocumentData): T {
   return converted as T;
 }
 
+// Strip undefined values recursively (Firestore rejects undefined)
+function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      cleaned[key] = value.map(item =>
+        typeof item === 'object' && item !== null && !(item instanceof Date)
+          ? stripUndefined(item as Record<string, unknown>)
+          : item
+      );
+    } else if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+      cleaned[key] = stripUndefined(value as Record<string, unknown>);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
 // Generic CRUD operations
 async function createDocument<T extends { id?: string }>(
   collectionName: string,
   data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
+  const cleanData = stripUndefined(data as Record<string, unknown>);
   const docRef = await addDoc(collection(db, collectionName), {
-    ...data,
+    ...cleanData,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -107,8 +128,9 @@ async function updateDocument<T>(
   data: Partial<T>
 ): Promise<void> {
   const docRef = doc(db, collectionName, docId);
+  const cleanData = stripUndefined(data as Record<string, unknown>);
   await updateDoc(docRef, {
-    ...data,
+    ...cleanData,
     updatedAt: serverTimestamp(),
   });
 }
