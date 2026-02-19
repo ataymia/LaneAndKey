@@ -113,8 +113,8 @@ const defaultForm: PropertyForm = {
   nearbyAmenities: '',
   schoolDistrict: '',
   internalNotes: '',
-  marketStatus: 'off',
-  acceptingApplications: false,
+  marketStatus: 'on',
+  acceptingApplications: true,
   lat: 0,
   lng: 0,
 };
@@ -133,6 +133,7 @@ export function AddPropertyPage() {
   const [message, setMessage] = useState('');
   const [activeSection, setActiveSection] = useState('basic');
   const [loadingProperty, setLoadingProperty] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     if (isEditing && id) {
@@ -202,6 +203,36 @@ export function AddPropertyPage() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  // Geocode address using OpenStreetMap Nominatim (free, no API key)
+  const geocodeAddress = async () => {
+    if (!form.address || !form.city || !form.state) {
+      setMessage('Please fill in address, city, and state first');
+      setActiveSection('basic');
+      return;
+    }
+    setGeocoding(true);
+    setMessage('');
+    try {
+      const q = encodeURIComponent(`${form.address}, ${form.city}, ${form.state} ${form.zip}`);
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+        headers: { 'Accept': 'application/json' },
+      });
+      const results = await resp.json();
+      if (results && results.length > 0) {
+        const { lat, lon } = results[0];
+        setForm(prev => ({ ...prev, lat: parseFloat(lat), lng: parseFloat(lon) }));
+        setMessage('Location coordinates found!');
+      } else {
+        setMessage('Could not find coordinates for this address. You can enter them manually below.');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      setMessage('Error looking up address coordinates.');
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -251,6 +282,25 @@ export function AddPropertyPage() {
     setMessage('');
 
     try {
+      // Auto-geocode if coordinates are missing
+      let lat = form.lat;
+      let lng = form.lng;
+      if ((!lat || !lng) && form.address && form.city && form.state) {
+        try {
+          const q = encodeURIComponent(`${form.address}, ${form.city}, ${form.state} ${form.zip}`);
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+            headers: { 'Accept': 'application/json' },
+          });
+          const results = await resp.json();
+          if (results && results.length > 0) {
+            lat = parseFloat(results[0].lat);
+            lng = parseFloat(results[0].lon);
+          }
+        } catch {
+          // Geocoding is best-effort; proceed without coordinates
+        }
+      }
+
       const petPolicy: PetPolicy = {
         allowed: form.petAllowed,
         depositPerPet: form.petDeposit,
@@ -299,8 +349,8 @@ export function AddPropertyPage() {
         marketStatus: form.marketStatus,
         occupancyStatus: 'vacant',
         acceptingApplications: form.acceptingApplications,
-        lat: form.lat || undefined,
-        lng: form.lng || undefined,
+        lat: lat || undefined,
+        lng: lng || undefined,
       };
 
       if (isEditing && id) {
@@ -948,37 +998,58 @@ export function AddPropertyPage() {
           {activeSection === 'location' && (
             <div className="form-section">
               <h2>Location</h2>
-              <p className="section-hint">Set the map coordinates for this property</p>
+              <p className="section-hint">Map coordinates for this property (used for map pin on listings page)</p>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Latitude</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={form.lat}
-                    onChange={e => handleChange('lat', parseFloat(e.target.value))}
-                    step="0.0001"
-                    placeholder="e.g. 33.4484"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Longitude</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={form.lng}
-                    onChange={e => handleChange('lng', parseFloat(e.target.value))}
-                    step="0.0001"
-                    placeholder="e.g. -112.0740"
-                  />
-                </div>
+              <div className="form-group">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={geocodeAddress}
+                  disabled={geocoding || !form.address || !form.city || !form.state}
+                  style={{ marginBottom: '1rem' }}
+                >
+                  <MapPin size={16} />
+                  {geocoding ? 'Looking up address...' : 'Auto-detect from Address'}
+                </button>
+                {form.lat !== 0 && form.lng !== 0 && (
+                  <p className="form-hint" style={{ color: 'var(--success-color, #16a34a)' }}>
+                    Coordinates set: {form.lat.toFixed(4)}, {form.lng.toFixed(4)}
+                  </p>
+                )}
+                {form.lat === 0 && form.lng === 0 && (
+                  <p className="form-hint">
+                    Click the button above to automatically find coordinates from the property address.
+                  </p>
+                )}
               </div>
 
-              <p className="form-hint">
-                Tip: Find coordinates using <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Google Maps</a> — 
-                right-click a location and select the coordinates.
-              </p>
+              <details style={{ marginTop: '1rem' }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Manual coordinates (advanced)</summary>
+                <div className="form-row" style={{ marginTop: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Latitude</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={form.lat}
+                      onChange={e => handleChange('lat', parseFloat(e.target.value) || 0)}
+                      step="0.0001"
+                      placeholder="e.g. 33.4484"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Longitude</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={form.lng}
+                      onChange={e => handleChange('lng', parseFloat(e.target.value) || 0)}
+                      step="0.0001"
+                      placeholder="e.g. -112.0740"
+                    />
+                  </div>
+                </div>
+              </details>
             </div>
           )}
         </form>

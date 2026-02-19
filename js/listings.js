@@ -43,7 +43,7 @@ function initMap() {
 
 function loadListings(listings = null) {
     if (!listings) {
-        listings = getPublishedListings();
+        listings = getAllListings();
     }
     
     currentListings = listings;

@@ -157,9 +157,18 @@ function createListingDetailHTML(listing) {
         ? `<p style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">Application Fee: ${formatPrice(listing.applicationFee)}</p>`
         : '';
 
+    // Status badge for detail page
+    const isOnMarket = listing.marketStatus === 'on';
+    const detailBadgeStyle = isOnMarket
+        ? 'background: #16a34a; color: #fff;'
+        : 'background: #6b7280; color: #fff;';
+    const detailBadgeText = isOnMarket ? 'Available' : 'Off Market';
+    const detailBadgeHTML = `<span style="${detailBadgeStyle} padding: 5px 14px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; display: inline-block; margin-bottom: 0.5rem;">${detailBadgeText}</span>`;
+
     return `
         <div class="listing-detail">
             <div class="listing-detail-header">
+                ${detailBadgeHTML}
                 <h1>${fullAddress}</h1>
                 <p style="color: #666; margin-top: 0.25rem;">${cityStateZip}</p>
                 <div class="listing-detail-price">${formatPrice(listing.price)}/mo</div>

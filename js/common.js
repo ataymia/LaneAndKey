@@ -29,8 +29,17 @@ function createListingCard(listing) {
     
     const cityDisplay = [listing.city, listing.state].filter(Boolean).join(', ');
     
+    // Status badge
+    const isOnMarket = listing.marketStatus === 'on';
+    const badgeStyle = isOnMarket
+        ? 'background: #16a34a; color: #fff;'
+        : 'background: #6b7280; color: #fff;';
+    const badgeText = isOnMarket ? 'Available' : 'Off Market';
+    const badgeHTML = `<span style="position: absolute; top: 10px; left: 10px; ${badgeStyle} padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; z-index: 2;">${badgeText}</span>`;
+
     return `
-        <div class="listing-card" onclick="viewListing('${listing.id}')">
+        <div class="listing-card" onclick="viewListing('${listing.id}')" style="position: relative;">
+            ${badgeHTML}
             <img src="${photo}" alt="${listing.address}" class="listing-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'400\\' height=\\'300\\'%3E%3Crect fill=\\'%23CCD5FF\\' width=\\'400\\' height=\\'300\\'/%3E%3Ctext fill=\\'%23FFFFFF\\' font-family=\\'Arial\\' font-size=\\'24\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3ENo Image%3C/text%3E%3C/svg%3E'">
             <div class="listing-info">
                 <div class="listing-price">${priceLabel}</div>

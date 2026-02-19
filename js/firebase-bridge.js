@@ -64,6 +64,7 @@ function _docToListing(doc) {
     lat: _fsVal(f.lat) || null,
     lng: _fsVal(f.lng) || null,
     published: true,
+    marketStatus: _fsVal(f.marketStatus) || 'off',
     acceptingApplications: _fsVal(f.acceptingApplications) || false,
     occupancyStatus: _fsVal(f.occupancyStatus) || 'vacant',
     unit: _fsVal(f.unit) || '',
@@ -99,17 +100,8 @@ async function fetchPropertiesFromFirestore() {
     const data = await response.json();
     const documents = data.documents || [];
     
-    // Filter to only on-market properties
-    const listings = documents
-      .map(doc => _docToListing(doc))
-      .filter(listing => {
-        // Check marketStatus from the raw doc
-        const rawDoc = documents.find(d => d.name.split('/').pop() === listing.id);
-        const marketStatus = rawDoc && rawDoc.fields && rawDoc.fields.marketStatus
-          ? _fsVal(rawDoc.fields.marketStatus)
-          : 'off';
-        return marketStatus === 'on';
-      });
+    // Map all properties (show both on-market and off-market with badges)
+    const listings = documents.map(doc => _docToListing(doc));
 
     // Cache to localStorage for instant-load next time
     localStorage.setItem('lanekey_listings', JSON.stringify(listings));

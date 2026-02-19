@@ -224,7 +224,7 @@ function logout() {
 
 // Search and filter functions
 function searchListings(query) {
-    const listings = getPublishedListings();
+    const listings = getAllListings();
     const lowerQuery = query.toLowerCase();
     
     return listings.filter(listing => 
@@ -236,7 +236,7 @@ function searchListings(query) {
 }
 
 function filterListings(filters) {
-    let listings = getPublishedListings();
+    let listings = getAllListings();
     
     // City filter
     if (filters.city) {

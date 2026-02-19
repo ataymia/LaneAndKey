@@ -14,7 +14,7 @@ window._refreshWithFirestoreData = function(listings) {
 
 function loadFeaturedListings(listings) {
     if (!listings) {
-        listings = getPublishedListings();
+        listings = getAllListings();
     }
     const featuredListings = listings.slice(0, 3); // Show first 3 listings
     
