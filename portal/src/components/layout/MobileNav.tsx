@@ -27,8 +27,8 @@ const tenantMobileNavItems: MobileNavItem[] = [
 const applicantMobileNavItems: MobileNavItem[] = [
   { icon: <Home size={20} />, label: 'Home', path: '/applicant' },
   { icon: <FileText size={20} />, label: 'Applications', path: '/applicant/applications' },
-  { icon: <FolderOpen size={20} />, label: 'Documents', path: '/applicant/documents' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/applicant/messages' },
+  { icon: <Bell size={20} />, label: 'Alerts', path: '/applicant/alerts' },
   { icon: <Settings size={20} />, label: 'Settings', path: '/applicant/settings' },
 ];
 

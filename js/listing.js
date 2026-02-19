@@ -82,9 +82,18 @@ function createListingDetailHTML(listing) {
         ? listing.photos 
         : ['data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'800\' height=\'600\'%3E%3Crect fill=\'%23CCD5FF\' width=\'800\' height=\'600\'/%3E%3Ctext fill=\'%23FFFFFF\' font-family=\'Arial\' font-size=\'36\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ENo Image%3C/text%3E%3C/svg%3E'];
     
-    const photoGalleryHTML = photos.map((photo, index) => 
-        `<img src="${photo}" alt="${listing.address} - Photo ${index + 1}" class="gallery-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'800\\' height=\\'600\\'%3E%3Crect fill=\\'%23CCD5FF\\' width=\\'800\\' height=\\'600\\'/%3E%3Ctext fill=\\'%23FFFFFF\\' font-family=\\'Arial\\' font-size=\\'36\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3ENo Image%3C/text%3E%3C/svg%3E'">`
+    const showArrows = photos.length > 1;
+    const photoSlidesHTML = photos.map((photo, index) => 
+        `<div class="carousel-slide${index === 0 ? ' active' : ''}" data-index="${index}">
+            <img src="${photo}" alt="${listing.address} - Photo ${index + 1}" class="carousel-img" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'800\\' height=\\'600\\'%3E%3Crect fill=\\'%23CCD5FF\\' width=\\'800\\' height=\\'600\\'/%3E%3Ctext fill=\\'%23FFFFFF\\' font-family=\\'Arial\\' font-size=\\'36\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3ENo Image%3C/text%3E%3C/svg%3E'">
+        </div>`
     ).join('');
+    const arrowsHTML = showArrows ? `
+        <button class="carousel-arrow carousel-prev" onclick="carouselNav(-1)" aria-label="Previous photo">&#10094;</button>
+        <button class="carousel-arrow carousel-next" onclick="carouselNav(1)" aria-label="Next photo">&#10095;</button>
+    ` : '';
+    const counterHTML = showArrows ? `<div class="carousel-counter"><span id="carousel-index">1</span> / ${photos.length}</div>` : '';
+    const photoGalleryHTML = `${photoSlidesHTML}${arrowsHTML}${counterHTML}`;
     
     const propertyTypeLabel = formatPropertyType(listing.type);
     
@@ -350,3 +359,42 @@ window.addEventListener('click', function(event) {
         closeContactModal();
     }
 });
+
+// ── Image Carousel ──
+let _carouselIdx = 0;
+
+function carouselNav(dir) {
+    const slides = document.querySelectorAll('.carousel-slide');
+    if (!slides.length) return;
+    slides[_carouselIdx].classList.remove('active');
+    _carouselIdx = (_carouselIdx + dir + slides.length) % slides.length;
+    slides[_carouselIdx].classList.add('active');
+    const counter = document.getElementById('carousel-index');
+    if (counter) counter.textContent = _carouselIdx + 1;
+}
+
+// Keyboard arrows
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowLeft') carouselNav(-1);
+    if (e.key === 'ArrowRight') carouselNav(1);
+});
+
+// Swipe support
+(function() {
+    let touchStartX = 0;
+    document.addEventListener('touchstart', function(e) {
+        const gallery = document.querySelector('.listing-detail-gallery');
+        if (gallery && gallery.contains(e.target)) {
+            touchStartX = e.changedTouches[0].screenX;
+        }
+    }, { passive: true });
+    document.addEventListener('touchend', function(e) {
+        const gallery = document.querySelector('.listing-detail-gallery');
+        if (gallery && gallery.contains(e.target)) {
+            const diff = touchStartX - e.changedTouches[0].screenX;
+            if (Math.abs(diff) > 40) {
+                carouselNav(diff > 0 ? 1 : -1);
+            }
+        }
+    }, { passive: true });
+})();

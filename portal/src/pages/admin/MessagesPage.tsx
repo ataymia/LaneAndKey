@@ -42,6 +42,7 @@ export function MessagesPage() {
   const [inquiries, setInquiries] = useState<ContactSubmission[]>([]);
   const [selectedInquiry, setSelectedInquiry] = useState<ContactSubmission | null>(null);
   const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -266,7 +267,7 @@ export function MessagesPage() {
     <div className="messages-page">
       <div className="messages-container">
         {/* Conversations List */}
-        <div className="conversations-panel">
+        <div className={`conversations-panel${mobilePanelOpen ? ' show' : ''}`}>
           <div className="panel-header">
             <div className="panel-header-row" style={{ gap: '0.25rem' }}>
               <button
@@ -320,7 +321,7 @@ export function MessagesPage() {
                     <div
                       key={conv.id}
                       className={`conversation-item ${selectedConversation?.id === conv.id ? 'active' : ''}`}
-                      onClick={() => { selectConversation(conv); setSelectedInquiry(null); }}
+                      onClick={() => { selectConversation(conv); setSelectedInquiry(null); setMobilePanelOpen(false); }}
                     >
                       <div className={`conversation-icon ${conv.type}`}>
                         {getConversationIcon(conv.type)}
@@ -363,7 +364,7 @@ export function MessagesPage() {
                     <div
                       key={inq.id}
                       className={`conversation-item ${selectedInquiry?.id === inq.id ? 'active' : ''} ${!inq.read ? 'unread' : ''}`}
-                      onClick={() => { setSelectedInquiry(inq); setSelectedConversation(null); if (!inq.read) markInquiryRead(inq); }}
+                      onClick={() => { setSelectedInquiry(inq); setSelectedConversation(null); setMobilePanelOpen(false); if (!inq.read) markInquiryRead(inq); }}
                     >
                       <div className="conversation-icon" style={{ background: !inq.read ? '#ef4444' : '#9BAAFF' }}>
                         <Mail size={18} />
@@ -398,6 +399,9 @@ export function MessagesPage() {
           {selectedConversation ? (
             <>
               <div className="panel-header">
+                <button className="btn btn-sm btn-outline mobile-back-btn" onClick={() => { setSelectedConversation(null); setMobilePanelOpen(true); }}>
+                  ← Back
+                </button>
                 <div className="selected-conversation">
                   <div className={`conversation-icon ${selectedConversation.type}`}>
                     {getConversationIcon(selectedConversation.type)}
@@ -442,6 +446,9 @@ export function MessagesPage() {
             </>
           ) : selectedInquiry ? (
             <div className="inquiry-detail" style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+              <button className="btn btn-sm btn-outline mobile-back-btn" onClick={() => { setSelectedInquiry(null); setMobilePanelOpen(true); }} style={{ marginBottom: '0.75rem' }}>
+                ← Back
+              </button>
               <div className="panel-header" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <h3 style={{ margin: 0 }}>{selectedInquiry.name}</h3>
@@ -483,6 +490,9 @@ export function MessagesPage() {
               <MessageSquare size={48} />
               <h3>{activeTab === 'inquiries' ? 'Select an inquiry' : 'Select a conversation'}</h3>
               <p>{activeTab === 'inquiries' ? 'Choose a contact inquiry from the list to view details' : 'Choose a conversation from the list or start a new one'}</p>
+              <button className="btn btn-outline mobile-back-btn" onClick={() => setMobilePanelOpen(true)} style={{ marginTop: '0.5rem' }}>
+                ← Show List
+              </button>
               {activeTab === 'conversations' && (
                 <button className="btn btn-primary" onClick={openNewConversation} style={{ marginTop: '1rem' }}>
                   <Plus size={18} /> New Conversation

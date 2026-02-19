@@ -46,6 +46,8 @@ import {
   ApplicantDocumentsPage,
   ApplicantMessagesPage,
   ApplicantSettingsPage,
+  ApplicantAlertsPage,
+  ApplicantListingsPage,
 } from './pages/applicant';
 
 // Home redirect based on role
@@ -144,8 +146,10 @@ function App() {
           >
             <Route index element={<ApplicantDashboard />} />
             <Route path="applications" element={<ApplicantApplicationsPage />} />
+            <Route path="listings" element={<ApplicantListingsPage />} />
             <Route path="documents" element={<ApplicantDocumentsPage />} />
             <Route path="messages" element={<ApplicantMessagesPage />} />
+            <Route path="alerts" element={<ApplicantAlertsPage />} />
             <Route path="settings" element={<ApplicantSettingsPage />} />
           </Route>
           

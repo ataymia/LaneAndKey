@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts';
 import { Link } from 'react-router-dom';
 import {
@@ -8,19 +9,39 @@ import {
   Search,
   Home,
   Sparkles,
+  XCircle,
 } from 'lucide-react';
+import { applicationService, propertyService } from '../../lib/firebase';
+import type { Application, Property } from '../../types';
 import './ApplicantDashboard.css';
 
 export function ApplicantDashboard() {
-  const { userProfile } = useAuth();
+  const { userProfile, user } = useAuth();
+  const [applications, setApplications] = useState<(Application & { propertyAddress?: string })[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Placeholder data
-  const applications: {
-    id: string;
-    propertyAddress: string;
-    status: string;
-    submittedDate: Date;
-  }[] = [];
+  useEffect(() => {
+    if (user) loadApplications();
+  }, [user]);
+
+  const loadApplications = async () => {
+    if (!user) return;
+    try {
+      const apps = await applicationService.getByApplicant(user.uid);
+      // Fetch property addresses
+      const enriched = await Promise.all(apps.map(async (app) => {
+        try {
+          const prop = await propertyService.get(app.propertyId);
+          return { ...app, propertyAddress: prop ? `${prop.address}, ${prop.city}` : 'Unknown property' };
+        } catch { return { ...app, propertyAddress: 'Unknown property' }; }
+      }));
+      setApplications(enriched);
+    } catch (error) {
+      console.error('Error loading applications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="applicant-dashboard">
@@ -39,7 +60,7 @@ export function ApplicantDashboard() {
             <h2>Find Your Perfect Home</h2>
             <p>Browse our available properties and start your application today.</p>
           </div>
-          <Link to="/properties" className="btn btn-primary">
+          <Link to="/applicant/listings" className="btn btn-primary">
             <Search size={18} />
             Browse Properties
           </Link>
@@ -57,7 +78,9 @@ export function ApplicantDashboard() {
           )}
         </div>
 
-        {applications.length > 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>Loading applications...</div>
+        ) : applications.length > 0 ? (
           <div className="applications-list">
             {applications.map(app => (
               <div key={app.id} className="application-card">
@@ -65,15 +88,12 @@ export function ApplicantDashboard() {
                   <Home size={24} />
                 </div>
                 <div className="application-info">
-                  <h3>{app.propertyAddress}</h3>
-                  <p>Submitted {app.submittedDate.toLocaleDateString()}</p>
+                  <h3>{app.propertyAddress || 'Unknown property'}</h3>
+                  <p>Submitted {new Date(app.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div className="application-status">
                   {getStatusBadge(app.status)}
                 </div>
-                <Link to={`/applicant/applications/${app.id}`} className="btn btn-sm btn-outline">
-                  View
-                </Link>
               </div>
             ))}
           </div>
@@ -84,7 +104,7 @@ export function ApplicantDashboard() {
             </div>
             <h3>No applications yet</h3>
             <p>Browse available properties and submit your first application.</p>
-            <Link to="/properties" className="btn btn-secondary">
+            <Link to="/applicant/listings" className="btn btn-secondary">
               Browse Properties
             </Link>
           </div>
@@ -124,11 +144,16 @@ export function ApplicantDashboard() {
 function getStatusBadge(status: string) {
   switch (status) {
     case 'new':
+    case 'submitted':
       return <span className="badge badge-info"><Clock size={12} /> Submitted</span>;
     case 'in_review':
       return <span className="badge badge-warning"><Clock size={12} /> In Review</span>;
     case 'approved':
       return <span className="badge badge-success"><CheckCircle size={12} /> Approved</span>;
+    case 'declined':
+      return <span className="badge badge-danger"><XCircle size={12} /> Declined</span>;
+    case 'withdrawn':
+      return <span className="badge badge-gray"><XCircle size={12} /> Withdrawn</span>;
     default:
       return <span className="badge badge-gray">{status}</span>;
   }

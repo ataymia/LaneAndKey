@@ -4,4 +4,6 @@ export {
   ApplicantDocumentsPage,
   ApplicantMessagesPage,
   ApplicantSettingsPage,
+  ApplicantAlertsPage,
+  ApplicantListingsPage,
 } from './ApplicantPages';

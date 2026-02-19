@@ -382,6 +382,11 @@
   color: var(--text-muted);
 }
 
+/* Mobile back button – hidden on desktop */
+.mobile-back-btn {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .messages-page {
     height: calc(100vh - var(--mobile-nav-height) - 2rem);
@@ -403,5 +408,9 @@
   
   .messages-panel {
     width: 100%;
+  }
+
+  .mobile-back-btn {
+    display: inline-flex;
   }
 }
