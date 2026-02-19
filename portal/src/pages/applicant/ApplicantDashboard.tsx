@@ -12,7 +12,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { applicationService, propertyService } from '../../lib/firebase';
-import type { Application, Property } from '../../types';
+import type { Application } from '../../types';
 import './ApplicantDashboard.css';
 
 export function ApplicantDashboard() {

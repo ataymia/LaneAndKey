@@ -85,7 +85,7 @@ export function ApplicantApplicationsPage() {
                 </div>
               </div>
               <div>{getStatusBadge(app.status)}</div>
-              {(app.status === 'new' || app.status === 'submitted' || app.status === 'in_review') && (
+              {(app.status === 'new' || app.status === 'in_review') && (
                 <button className="btn btn-sm btn-outline" style={{ color: '#ef4444', borderColor: '#fca5a5' }} onClick={() => withdrawApp(app.id)}>
                   Withdraw
                 </button>
@@ -438,11 +438,11 @@ export function ApplicantListingsPage() {
         householdId: '',
         primaryApplicantId: user.uid,
         coApplicantIds: [],
-        desiredMoveInDate: '',
+        desiredMoveInDate: new Date(),
         status: 'new',
-        documents: [],
-        notes: [],
-        timeline: [{ status: 'new', date: new Date().toISOString(), note: 'Application submitted' }],
+        documents: [] as any,
+        notes: '',
+        timeline: [{ event: 'submitted', date: new Date(), description: 'Application submitted' } as any],
       });
       setAppliedIds(prev => new Set(prev).add(propertyId));
     } catch (err) { console.error('Error submitting application:', err); }

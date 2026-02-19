@@ -6,7 +6,6 @@ import {
   MessageSquare,
   Bell,
   Settings,
-  FolderOpen,
 } from 'lucide-react';
 import './MobileNav.css';
 
