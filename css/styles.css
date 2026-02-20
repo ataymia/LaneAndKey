@@ -837,11 +837,12 @@ body {
 .listing-detail-gallery {
     position: relative;
     width: 100%;
-    max-width: 100%;
+    max-width: 700px;
+    margin: 0 auto 1.5rem;
     background: #111;
     overflow: hidden;
-    border-radius: 0;
-    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    aspect-ratio: 4 / 3;
     touch-action: pan-y;
     user-select: none;
 }
@@ -860,7 +861,8 @@ body {
 .carousel-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    background: #111;
 }
 
 .carousel-arrow {
@@ -1058,7 +1060,9 @@ body {
     }
 
     .listing-detail-gallery {
+        max-width: 100%;
         aspect-ratio: 4 / 3;
+        border-radius: 8px;
     }
 
     .listing-detail-sidebar {
