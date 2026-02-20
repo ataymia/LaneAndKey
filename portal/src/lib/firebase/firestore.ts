@@ -206,6 +206,8 @@ export const applicationService = {
   
   get: (id: string) => getDocument<Application>('applications', id),
   
+  getAll: () => getDocuments<Application>('applications', orderBy('createdAt', 'desc')),
+  
   getByProperty: (propertyId: string) =>
     getDocuments<Application>('applications', where('propertyId', '==', propertyId)),
   
@@ -214,6 +216,18 @@ export const applicationService = {
   
   getByStatus: (status: Application['status']) =>
     getDocuments<Application>('applications', where('status', '==', status)),
+  
+  /** Get latest application for a user+property combo */
+  getLatestForListing: async (uid: string, propertyId: string): Promise<Application | null> => {
+    const apps = await getDocuments<Application>(
+      'applications',
+      where('primaryApplicantId', '==', uid),
+      where('propertyId', '==', propertyId),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+    return apps.length > 0 ? apps[0] : null;
+  },
   
   update: (id: string, data: Partial<Application>) =>
     updateDocument<Application>('applications', id, data),

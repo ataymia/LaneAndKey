@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Bell,
   Settings,
+  Search,
 } from 'lucide-react';
 import './MobileNav.css';
 
@@ -25,10 +26,10 @@ const tenantMobileNavItems: MobileNavItem[] = [
 
 const applicantMobileNavItems: MobileNavItem[] = [
   { icon: <Home size={20} />, label: 'Home', path: '/applicant' },
-  { icon: <FileText size={20} />, label: 'Applications', path: '/applicant/applications' },
+  { icon: <Search size={20} />, label: 'Listings', path: '/applicant/listings' },
+  { icon: <FileText size={20} />, label: 'Apps', path: '/applicant/applications' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/applicant/messages' },
-  { icon: <Bell size={20} />, label: 'Alerts', path: '/applicant/alerts' },
-  { icon: <Settings size={20} />, label: 'Settings', path: '/applicant/settings' },
+  { icon: <Settings size={20} />, label: 'More', path: '/applicant/settings' },
 ];
 
 const adminMobileNavItems: MobileNavItem[] = [

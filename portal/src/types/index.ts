@@ -173,11 +173,28 @@ export interface Application {
   documents: ApplicationDocument[];
   notes?: string;
   timeline: TimelineEvent[];
+  applicantSnapshot?: ApplicantProfile;
+  submittedAt?: Date;
+  withdrawnAt?: Date;
+  deniedAt?: Date;
+  approvedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type ApplicationStatus = 'new' | 'in_review' | 'approved' | 'declined' | 'withdrawn' | 'archived';
+
+export interface ApplicantProfile {
+  fullName: string;
+  phone: string;
+  dateOfBirth: string;
+  monthlyIncome: number;
+  employer: string;
+  employerPhone?: string;
+  currentAddress?: string;
+  moveInDate?: string;
+  additionalNotes?: string;
+}
 
 export interface ApplicationDocument {
   id: string;

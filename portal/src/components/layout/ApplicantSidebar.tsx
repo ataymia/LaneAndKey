@@ -8,6 +8,7 @@ import {
   Bell,
   Settings,
   LogOut,
+  Search,
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -20,6 +21,7 @@ interface NavItem {
 
 const applicantNavItems: NavItem[] = [
   { icon: <Home size={20} />, label: 'Dashboard', path: '/applicant' },
+  { icon: <Search size={20} />, label: 'Browse Listings', path: '/applicant/listings' },
   { icon: <FileText size={20} />, label: 'My Applications', path: '/applicant/applications' },
   { icon: <FolderOpen size={20} />, label: 'Documents', path: '/applicant/documents' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/applicant/messages' },
