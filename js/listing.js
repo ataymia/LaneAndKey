@@ -177,15 +177,15 @@ function createListingDetailHTML(listing) {
 
     return `
         <div class="listing-detail">
+            <div class="listing-detail-gallery" onclick="if(window.innerWidth<=768)openLightbox()">
+                ${photoGalleryHTML}
+            </div>
+
             <div class="listing-detail-header">
                 ${detailBadgeHTML}
                 <h1>${fullAddress}</h1>
                 <p style="color: #666; margin-top: 0.25rem;">${cityStateZip}</p>
                 <div class="listing-detail-price">${formatPrice(listing.price)}/mo</div>
-            </div>
-            
-            <div class="listing-detail-gallery" onclick="if(window.innerWidth<=768)openLightbox()">
-                ${photoGalleryHTML}
             </div>
 
             <!-- Fullscreen Lightbox -->

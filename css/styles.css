@@ -837,12 +837,11 @@ body {
 .listing-detail-gallery {
     position: relative;
     width: 100%;
-    max-width: 960px;
-    margin: 0 auto 1.5rem;
     background: #111;
     overflow: hidden;
-    border-radius: 12px;
-    aspect-ratio: 16 / 10;
+    border-radius: 0;
+    aspect-ratio: 16 / 9;
+    max-height: 560px;
     touch-action: pan-y;
     user-select: none;
     cursor: pointer;
