@@ -1,6 +1,22 @@
 # Cloudflare Pages Headers
+
+# Security headers for all pages
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   X-XSS-Protection: 1; mode=block
   Referrer-Policy: strict-origin-when-cross-origin
+
+# Prevent caching of HTML pages so fresh assets are always loaded after deploys
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/portal/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/portal/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Long cache for hashed/fingerprinted assets (immutable content)
+/portal/assets/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Route only /api/* through Cloudflare Pages Functions. All other requests go to static assets and _redirects.",
+  "include": ["/api/*"],
+  "exclude": []
+}

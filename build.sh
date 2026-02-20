@@ -35,6 +35,7 @@ cp -r functions dist/
 cp *.html dist/
 cp _headers dist/
 cp _redirects dist/
+cp _routes.json dist/
 
 # Build the portal React application
 echo "Building portal application..."
