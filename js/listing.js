@@ -93,7 +93,8 @@ function createListingDetailHTML(listing) {
         <button class="carousel-arrow carousel-next" onclick="carouselNav(1)" aria-label="Next photo">&#10095;</button>
     ` : '';
     const counterHTML = showArrows ? `<div class="carousel-counter"><span id="carousel-index">1</span> / ${photos.length}</div>` : '';
-    const photoGalleryHTML = `${photoSlidesHTML}${arrowsHTML}${counterHTML}`;
+    const expandBtnHTML = `<button class="carousel-expand-btn" onclick="openLightbox()" aria-label="Expand photo" title="View fullscreen">&#x26F6;</button>`;
+    const photoGalleryHTML = `${photoSlidesHTML}${arrowsHTML}${counterHTML}${expandBtnHTML}`;
     
     const propertyTypeLabel = formatPropertyType(listing.type);
     
@@ -183,8 +184,21 @@ function createListingDetailHTML(listing) {
                 <div class="listing-detail-price">${formatPrice(listing.price)}/mo</div>
             </div>
             
-            <div class="listing-detail-gallery">
+            <div class="listing-detail-gallery" onclick="if(window.innerWidth<=768)openLightbox()">
                 ${photoGalleryHTML}
+            </div>
+
+            <!-- Fullscreen Lightbox -->
+            <div id="photo-lightbox" class="lightbox-overlay" onclick="if(event.target===this)closeLightbox()">
+                <button class="lightbox-close" onclick="closeLightbox()" aria-label="Close">&#10005;</button>
+                <div class="lightbox-content">
+                    <img id="lightbox-img" src="" alt="" />
+                </div>
+                ${showArrows ? `
+                <button class="lightbox-arrow lightbox-prev" onclick="event.stopPropagation();lightboxNav(-1)">&#10094;</button>
+                <button class="lightbox-arrow lightbox-next" onclick="event.stopPropagation();lightboxNav(1)">&#10095;</button>
+                ` : ''}
+                <div class="lightbox-counter"><span id="lightbox-index">1</span> / ${photos.length}</div>
             </div>
             
             <div class="listing-detail-content">
@@ -375,26 +389,77 @@ function carouselNav(dir) {
 
 // Keyboard arrows
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'ArrowLeft') carouselNav(-1);
-    if (e.key === 'ArrowRight') carouselNav(1);
+    const lb = document.getElementById('photo-lightbox');
+    const inLightbox = lb && lb.classList.contains('open');
+    if (e.key === 'Escape' && inLightbox) { closeLightbox(); return; }
+    if (e.key === 'ArrowLeft') { inLightbox ? lightboxNav(-1) : carouselNav(-1); }
+    if (e.key === 'ArrowRight') { inLightbox ? lightboxNav(1) : carouselNav(1); }
 });
 
-// Swipe support
+// Swipe support (gallery + lightbox)
 (function() {
     let touchStartX = 0;
     document.addEventListener('touchstart', function(e) {
         const gallery = document.querySelector('.listing-detail-gallery');
-        if (gallery && gallery.contains(e.target)) {
+        const lightbox = document.getElementById('photo-lightbox');
+        if ((gallery && gallery.contains(e.target)) || (lightbox && lightbox.classList.contains('open') && lightbox.contains(e.target))) {
             touchStartX = e.changedTouches[0].screenX;
         }
     }, { passive: true });
     document.addEventListener('touchend', function(e) {
         const gallery = document.querySelector('.listing-detail-gallery');
-        if (gallery && gallery.contains(e.target)) {
+        const lightbox = document.getElementById('photo-lightbox');
+        const inLightbox = lightbox && lightbox.classList.contains('open') && lightbox.contains(e.target);
+        const inGallery = gallery && gallery.contains(e.target);
+        if (inLightbox) {
             const diff = touchStartX - e.changedTouches[0].screenX;
-            if (Math.abs(diff) > 40) {
-                carouselNav(diff > 0 ? 1 : -1);
-            }
+            if (Math.abs(diff) > 40) { lightboxNav(diff > 0 ? 1 : -1); }
+        } else if (inGallery) {
+            const diff = touchStartX - e.changedTouches[0].screenX;
+            if (Math.abs(diff) > 40) { carouselNav(diff > 0 ? 1 : -1); }
         }
     }, { passive: true });
 })();
+
+// ── Fullscreen Lightbox ──
+let _lightboxIdx = 0;
+let _lightboxPhotos = [];
+
+function openLightbox() {
+    const slides = document.querySelectorAll('.carousel-slide img');
+    if (!slides.length) return;
+    _lightboxPhotos = Array.from(slides).map(img => img.src);
+    _lightboxIdx = _carouselIdx;
+    const lb = document.getElementById('photo-lightbox');
+    const img = document.getElementById('lightbox-img');
+    if (!lb || !img) return;
+    img.src = _lightboxPhotos[_lightboxIdx];
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const counter = document.getElementById('lightbox-index');
+    if (counter) counter.textContent = _lightboxIdx + 1;
+}
+
+function closeLightbox() {
+    const lb = document.getElementById('photo-lightbox');
+    if (lb) lb.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function lightboxNav(dir) {
+    if (!_lightboxPhotos.length) return;
+    _lightboxIdx = (_lightboxIdx + dir + _lightboxPhotos.length) % _lightboxPhotos.length;
+    const img = document.getElementById('lightbox-img');
+    if (img) img.src = _lightboxPhotos[_lightboxIdx];
+    const counter = document.getElementById('lightbox-index');
+    if (counter) counter.textContent = _lightboxIdx + 1;
+    // Sync inline carousel
+    const slides = document.querySelectorAll('.carousel-slide');
+    if (slides.length) {
+        slides[_carouselIdx].classList.remove('active');
+        _carouselIdx = _lightboxIdx;
+        slides[_carouselIdx].classList.add('active');
+        const ic = document.getElementById('carousel-index');
+        if (ic) ic.textContent = _carouselIdx + 1;
+    }
+}
