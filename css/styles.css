@@ -841,7 +841,6 @@ body {
     overflow: hidden;
     border-radius: 0;
     aspect-ratio: 16 / 9;
-    max-height: 560px;
     touch-action: pan-y;
     user-select: none;
     cursor: pointer;
