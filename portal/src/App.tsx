@@ -29,6 +29,7 @@ import {
 import {
   TenantDashboard,
   TenantLeaseSignPage,
+  TenantOnboardingPage,
   TenantPaymentsPage,
   TenantRentHistoryPage,
   TenantDocumentsUploadPage,
@@ -124,6 +125,7 @@ function App() {
             }
           >
             <Route index element={<TenantDashboard />} />
+            <Route path="onboarding" element={<TenantOnboardingPage />} />
             <Route path="lease" element={<TenantLeaseSignPage />} />
             <Route path="payments" element={<TenantPaymentsPage />} />
             <Route path="payments/success" element={<PaymentSuccessPage />} />

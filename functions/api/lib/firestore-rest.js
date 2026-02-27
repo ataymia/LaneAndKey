@@ -284,6 +284,60 @@ export async function getSubcollection(projectId, parentPath, subcollection, idT
   return (data.documents || []).map(docToObject);
 }
 
+/**
+ * Atomically commit multiple writes.
+ *
+ * writes item format:
+ * - { op: 'set', path: 'collection/doc[/sub/doc]', data: {...} }
+ * - { op: 'update', path: 'collection/doc[/sub/doc]', data: {...} }
+ */
+export async function commitWrites(projectId, writes, idToken) {
+  const url = `${FIRESTORE_BASE}/projects/${projectId}/databases/(default)/documents:commit`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+
+  const payloadWrites = writes.map((w) => {
+    const fields = objectToFields(w.data || {});
+    const docName = `projects/${projectId}/databases/(default)/documents/${w.path}`;
+
+    if (w.op === 'set') {
+      return {
+        update: {
+          name: docName,
+          fields,
+        },
+      };
+    }
+
+    if (w.op === 'update') {
+      return {
+        update: {
+          name: docName,
+          fields,
+        },
+        updateMask: {
+          fieldPaths: Object.keys(fields),
+        },
+      };
+    }
+
+    throw new Error(`Unsupported write op: ${w.op}`);
+  });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ writes: payloadWrites }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Firestore COMMIT failed: ${err}`);
+  }
+
+  return await response.json();
+}
+
 export {
   toFirestoreValue,
   fromFirestoreValue,

@@ -7,8 +7,15 @@ import {
   Wrench,
   Plus,
 } from 'lucide-react';
-import { conversationService, messageService, userService } from '../../lib/firebase';
-import type { Conversation, Message, UserProfile } from '../../types';
+import { conversationService, messageService, userService, maintenanceService, leaseService } from '../../lib/firebase';
+import type {
+  Conversation,
+  Message,
+  UserProfile,
+  MaintenanceCategory,
+  MaintenancePriority,
+  MaintenanceTicket,
+} from '../../types';
 
 // Placeholder pages for Tenant portal
 export function TenantLeasePage() {
@@ -30,20 +37,148 @@ export function TenantLeasePage() {
 }
 
 export function TenantMaintenancePage() {
+  const { userProfile } = useAuth();
+  const [tickets, setTickets] = useState<MaintenanceTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    category: 'other' as MaintenanceCategory,
+    priority: 'medium' as MaintenancePriority,
+    description: '',
+  });
+
+  useEffect(() => {
+    const loadTickets = async () => {
+      if (!userProfile) return;
+      try {
+        setLoading(true);
+        const data = await maintenanceService.getByTenant(userProfile.uid);
+        setTickets(data);
+      } catch (error) {
+        console.error('Error loading tenant maintenance tickets:', error);
+        setMessage('Failed to load maintenance requests.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTickets();
+  }, [userProfile]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!userProfile || !form.description.trim()) return;
+
+    try {
+      setSubmitting(true);
+      setMessage(null);
+
+      let propertyId = userProfile.currentPropertyId;
+      if (!propertyId && userProfile.currentLeaseId) {
+        const lease = await leaseService.get(userProfile.currentLeaseId);
+        propertyId = lease?.propertyId;
+      }
+
+      if (!propertyId) {
+        setMessage('No lease assigned. Contact management before submitting requests.');
+        return;
+      }
+
+      await maintenanceService.create({
+        propertyId,
+        tenantId: userProfile.uid,
+        category: form.category,
+        priority: form.priority,
+        description: form.description.trim(),
+        attachments: [],
+        status: 'new',
+        comments: [],
+      });
+
+      const updated = await maintenanceService.getByTenant(userProfile.uid);
+      setTickets(updated);
+      setForm({ category: 'other', priority: 'medium', description: '' });
+      setMessage('Maintenance request submitted successfully.');
+    } catch (error) {
+      console.error('Error submitting maintenance request:', error);
+      setMessage('Failed to submit request. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>Maintenance</h1>
         <p>Submit and track maintenance requests</p>
       </div>
-      <div className="empty-state">
-        <div className="empty-state-icon">🔧</div>
-        <h3 className="empty-state-title">No maintenance requests</h3>
-        <p className="empty-state-description">
-          Submit a request if you need something fixed.
-        </p>
-        <button className="btn btn-primary">Submit Request</button>
-      </div>
+
+      <form className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem', marginBottom: '1rem' }} onSubmit={handleSubmit}>
+        <h3>Submit Request</h3>
+        <label>
+          Category
+          <select value={form.category} onChange={(event) => setForm((previous) => ({ ...previous, category: event.target.value as MaintenanceCategory }))}>
+            <option value="plumbing">Plumbing</option>
+            <option value="electrical">Electrical</option>
+            <option value="hvac">HVAC</option>
+            <option value="appliance">Appliance</option>
+            <option value="structural">Structural</option>
+            <option value="pest">Pest</option>
+            <option value="landscaping">Landscaping</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>
+          Priority
+          <select value={form.priority} onChange={(event) => setForm((previous) => ({ ...previous, priority: event.target.value as MaintenancePriority }))}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </label>
+        <label>
+          Description
+          <textarea
+            rows={4}
+            value={form.description}
+            onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
+            placeholder="Describe the issue in detail"
+            required
+          />
+        </label>
+        <button className="btn btn-primary" type="submit" disabled={submitting}>
+          {submitting ? 'Submitting...' : 'Submit Request'}
+        </button>
+        {message && <p>{message}</p>}
+      </form>
+
+      {loading ? (
+        <div className="empty-state"><p>Loading maintenance requests...</p></div>
+      ) : tickets.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔧</div>
+          <h3 className="empty-state-title">No maintenance requests</h3>
+          <p className="empty-state-description">Submit a request above if you need something fixed.</p>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: '1rem' }}>
+          <h3>Open & Recent Requests</h3>
+          <div style={{ display: 'grid', gap: '0.75rem' }}>
+            {tickets.map((ticket) => (
+              <div key={ticket.id} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem' }}>
+                <div style={{ fontWeight: 600 }}>{ticket.category} · {ticket.priority}</div>
+                <div style={{ fontSize: '0.9rem', color: '#4b5563' }}>{ticket.description}</div>
+                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                  Status: {ticket.status.replace('_', ' ')} · Created {new Date(ticket.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -373,16 +508,86 @@ export function TenantAlertsPage() {
 }
 
 export function TenantSettingsPage() {
+  const { userProfile, updateProfile } = useAuth();
+  const [phone, setPhone] = useState(userProfile?.phone || '');
+  const [preferredContactMethod, setPreferredContactMethod] = useState<'email' | 'phone' | 'sms'>(
+    userProfile?.preferredContactMethod || 'email'
+  );
+  const [emergencyName, setEmergencyName] = useState(userProfile?.emergencyContact?.name || '');
+  const [emergencyPhone, setEmergencyPhone] = useState(userProfile?.emergencyContact?.phone || '');
+  const [emergencyRelationship, setEmergencyRelationship] = useState(userProfile?.emergencyContact?.relationship || '');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhone(userProfile?.phone || '');
+    setPreferredContactMethod(userProfile?.preferredContactMethod || 'email');
+    setEmergencyName(userProfile?.emergencyContact?.name || '');
+    setEmergencyPhone(userProfile?.emergencyContact?.phone || '');
+    setEmergencyRelationship(userProfile?.emergencyContact?.relationship || '');
+  }, [userProfile]);
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      setSaving(true);
+      setMessage(null);
+      await updateProfile({
+        phone,
+        preferredContactMethod,
+        emergencyContact: {
+          name: emergencyName,
+          phone: emergencyPhone,
+          relationship: emergencyRelationship,
+        },
+      } as Partial<UserProfile>);
+      setMessage('Settings saved.');
+    } catch (error) {
+      console.error('Failed to save tenant settings:', error);
+      setMessage('Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>Settings</h1>
-        <p>Manage your account settings</p>
+        <p>Update your contact details</p>
       </div>
-      <div className="card" style={{ maxWidth: 600, padding: '2rem' }}>
-        <h3>Coming Soon</h3>
-        <p>Account settings will be available here.</p>
-      </div>
+      <form className="card" style={{ maxWidth: 600, padding: '2rem', display: 'grid', gap: '1rem' }} onSubmit={handleSave}>
+        <label>
+          Phone Number
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(555) 000-0000" />
+        </label>
+        <label>
+          Preferred Contact Method
+          <select value={preferredContactMethod} onChange={(event) => setPreferredContactMethod(event.target.value as 'email' | 'phone' | 'sms')}>
+            <option value="email">Email</option>
+            <option value="phone">Phone</option>
+            <option value="sms">SMS</option>
+          </select>
+        </label>
+        <label>
+          Emergency Contact Name
+          <input value={emergencyName} onChange={(event) => setEmergencyName(event.target.value)} />
+        </label>
+        <label>
+          Emergency Contact Phone
+          <input value={emergencyPhone} onChange={(event) => setEmergencyPhone(event.target.value)} />
+        </label>
+        <label>
+          Relationship
+          <input value={emergencyRelationship} onChange={(event) => setEmergencyRelationship(event.target.value)} />
+        </label>
+
+        {message && <p>{message}</p>}
+
+        <button className="btn btn-primary" type="submit" disabled={saving}>
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+      </form>
     </div>
   );
 }

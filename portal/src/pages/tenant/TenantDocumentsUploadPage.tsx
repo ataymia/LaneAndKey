@@ -29,49 +29,6 @@ const CATEGORIES: Record<string, string> = {
 
 const UPLOAD_CATEGORIES = Object.entries(CATEGORIES).filter(([k]) => k !== 'lease');
 
-/* ─── Demo data ─── */
-const DEMO_DOCS: PortalDocument[] = [
-  {
-    id: 'demo-doc-1',
-    ownerUid: 'demo-tenant-001',
-    uploadedByUid: 'demo-tenant-001',
-    roleScope: 'tenant',
-    category: 'pay_stub' as PortalDocCategory,
-    fileName: 'January_2026_PayStub.pdf',
-    originalFilePath: '',
-    status: 'approved' as PortalDocStatus,
-    requiresSignature: false,
-    createdAt: new Date('2026-01-05'),
-    updatedAt: new Date('2026-01-06'),
-  },
-  {
-    id: 'demo-doc-2',
-    ownerUid: 'demo-tenant-001',
-    uploadedByUid: 'demo-tenant-001',
-    roleScope: 'tenant',
-    category: 'id' as PortalDocCategory,
-    fileName: 'DriversLicense_Front.jpg',
-    originalFilePath: '',
-    status: 'pending' as PortalDocStatus,
-    requiresSignature: false,
-    createdAt: new Date('2026-01-03'),
-    updatedAt: new Date('2026-01-03'),
-  },
-  {
-    id: 'demo-doc-3',
-    ownerUid: 'demo-tenant-001',
-    uploadedByUid: 'admin-001',
-    roleScope: 'tenant',
-    category: 'lease' as PortalDocCategory,
-    fileName: 'Lease_Agreement_2026.pdf',
-    originalFilePath: '',
-    status: 'pending_signature' as PortalDocStatus,
-    requiresSignature: true,
-    createdAt: new Date('2026-01-01'),
-    updatedAt: new Date('2026-01-01'),
-  },
-];
-
 /* ─── Helpers ─── */
 function fmtDate(d: Date | string) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -114,14 +71,16 @@ export function TenantDocumentsUploadPage() {
     setLoading(true);
     try {
       if (!isFirebaseConfigured || !user) {
-        setDocuments(DEMO_DOCS);
+        setDocuments([]);
+        setError('Documents are unavailable until Firebase is configured and you are signed in.');
         return;
       }
       const docs = await portalDocumentService.getByOwner(user.uid);
       setDocuments(docs);
     } catch (err) {
       console.error('Error loading documents:', err);
-      setDocuments(DEMO_DOCS);
+      setDocuments([]);
+      setError('Failed to load your documents.');
     } finally {
       setLoading(false);
     }

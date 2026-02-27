@@ -16,6 +16,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { applicationService, propertyService, userService } from '../../lib/firebase';
+import { approveApplication } from '../../lib/api/portalApi';
 import type { Application, Property, UserProfile } from '../../types';
 import './Applications.css';
 
@@ -59,24 +60,31 @@ export function ApplicationsPage() {
     if (!confirm(`Approve application #${app.id.slice(0, 8)}?`)) return;
     setActionLoading(app.id);
     try {
+      const result = await approveApplication(app.id);
+      if (!result.success) {
+        throw new Error('Approval endpoint failed');
+      }
+
       const newTimeline = [...(app.timeline || []), {
         id: Date.now().toString(),
         event: 'approved',
-        description: 'Application approved by admin',
+        description: `Application approved by admin and linked to lease ${result.leaseId}`,
         date: new Date(),
         userId: 'admin',
       }];
-      await applicationService.update(app.id, {
-        status: 'approved',
-        approvedAt: new Date(),
-        timeline: newTimeline,
-      } as any);
+
       // Verify
       const updated = await applicationService.get(app.id);
       if (updated && updated.status === 'approved') {
-        setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', approvedAt: new Date(), timeline: newTimeline } : a));
+        setApplications(prev => prev.map(a => a.id === app.id ? {
+          ...a,
+          status: 'approved',
+          approvedAt: new Date(),
+          timeline: newTimeline,
+          leaseId: result.leaseId,
+        } : a));
       } else {
-        alert('Failed to approve. Firestore write may have been rejected.');
+        await loadApplications();
       }
     } catch (error) {
       console.error('Error approving application:', error);

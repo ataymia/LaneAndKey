@@ -14,7 +14,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { useAuth } from '../../contexts';
 import { portalDocumentService, isFirebaseConfigured } from '../../lib/firebase';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
-import type { PortalDocument, PortalDocStatus } from '../../types';
+import type { PortalDocument } from '../../types';
 import './TenantLease.css';
 
 /* ─── Helpers ─── */
@@ -27,21 +27,6 @@ function fmtDate(d: Date | string | null | undefined) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
-
-/* ─── Demo Data ─── */
-const DEMO_LEASE: PortalDocument = {
-  id: 'demo-lease-1',
-  ownerUid: 'demo-tenant-001',
-  uploadedByUid: 'admin-001',
-  roleScope: 'tenant',
-  category: 'lease',
-  fileName: 'Lease_Agreement_2026.pdf',
-  originalFilePath: '',
-  status: 'pending_signature' as PortalDocStatus,
-  requiresSignature: true,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-01-01'),
-} as PortalDocument;
 
 /* ─── Component ─── */
 export function TenantLeaseSignPage() {
@@ -61,6 +46,7 @@ export function TenantLeaseSignPage() {
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signSuccess, setSignSuccess] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   /* ─── Load lease document ─── */
   useEffect(() => {
@@ -68,7 +54,7 @@ export function TenantLeaseSignPage() {
       setLoading(true);
       try {
         if (!isFirebaseConfigured || !user) {
-          setLease(DEMO_LEASE);
+          setPageError('Lease documents are unavailable until Firebase is configured and you are signed in.');
           return;
         }
         const docs = await portalDocumentService.getByOwner(user.uid);
@@ -84,7 +70,7 @@ export function TenantLeaseSignPage() {
         }
       } catch (err) {
         console.error('Error loading lease:', err);
-        setLease(DEMO_LEASE);
+        setPageError('Failed to load lease document.');
       } finally {
         setLoading(false);
       }
@@ -199,19 +185,7 @@ export function TenantLeaseSignPage() {
 
         signedPdfBytes = await pdfDoc.save();
       } else {
-        // Demo mode – create a simple signed PDF
-        const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage([612, 792]);
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        page.drawText('LEASE AGREEMENT – SIGNED COPY', { x: 50, y: 740, size: 18, font });
-        page.drawText(`Tenant: ${userProfile?.displayName || 'Demo Tenant'}`, { x: 50, y: 700, size: 12, font });
-        page.drawText(`Date: ${new Date().toLocaleDateString()}`, { x: 50, y: 680, size: 12, font });
-        const pngImage = await pdfDoc.embedPng(sigImage);
-        const sigW = 200;
-        const sigH = (pngImage.height / pngImage.width) * sigW;
-        page.drawImage(pngImage, { x: 50, y: 560, width: sigW, height: sigH });
-        page.drawText(`SHA-256: ${sigHash}`, { x: 50, y: 540, size: 7, font, color: rgb(0.5, 0.5, 0.5) });
-        signedPdfBytes = await pdfDoc.save();
+        throw new Error('Original lease file is missing.');
       }
 
       // Upload signed PDF
@@ -269,6 +243,13 @@ export function TenantLeaseSignPage() {
           <p>View your lease agreement and sign electronically</p>
         </div>
       </div>
+
+      {pageError && (
+        <div className="alert alert-error">
+          <AlertCircle size={16} /> {pageError}
+          <button onClick={() => setPageError(null)}>&times;</button>
+        </div>
+      )}
 
       {signSuccess && (
         <div className="alert alert-success">

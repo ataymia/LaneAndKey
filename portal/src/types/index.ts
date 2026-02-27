@@ -8,6 +8,10 @@ export interface UserProfile {
   displayName: string;
   phone?: string;
   role: UserRole;
+  currentLeaseId?: string;
+  currentPropertyId?: string;
+  preferredContactMethod?: 'email' | 'phone' | 'sms';
+  emergencyContact?: EmergencyContact;
   emergencyContacts?: EmergencyContact[];
   notificationPreferences?: NotificationPreferences;
   createdAt: Date;
@@ -178,6 +182,8 @@ export interface Application {
   withdrawnAt?: Date;
   deniedAt?: Date;
   approvedAt?: Date;
+  approvedByUid?: string;
+  leaseId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -285,11 +291,14 @@ export type TenantDocumentType = 'lease' | 'insurance' | 'id' | 'notice' | 'infr
 export interface Lease {
   id: string;
   propertyId: string;
+  tenantUid?: string;
   tenantIds: string[];
   startDate: Date;
-  endDate: Date;
+  endDate: Date | null;
   monthlyRent: number;
   securityDeposit: number;
+  rentAmountCents?: number;
+  depositAmountCents?: number;
   rentDueDay: number;
   gracePeriodDays: number;
   includedUtilities?: string[];
@@ -297,11 +306,19 @@ export interface Lease {
   attachments: LeaseAttachment[];
   notes?: string;
   status: LeaseStatus;
+  onboardingStatus?: 'not_started' | 'in_progress' | 'complete';
+  onboardingChecklist?: {
+    leaseSigned: boolean;
+    contactConfirmed: boolean;
+    paymentReady: boolean;
+  };
+  leaseSignedAt?: Date | null;
+  createdByUid?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type LeaseStatus = 'draft' | 'active' | 'expired' | 'terminated';
+export type LeaseStatus = 'draft' | 'pending' | 'active' | 'ended' | 'expired' | 'terminated';
 
 export interface LeaseAttachment {
   id: string;

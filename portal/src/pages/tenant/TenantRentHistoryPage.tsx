@@ -18,75 +18,8 @@ import { createCheckoutSession, isStripeConfigured } from '../../lib/stripe';
 import type { RentStatement, LedgerEntry } from '../../types';
 import './TenantRentHistory.css';
 
-// Demo data for when Firebase is not configured
-const DEMO_STATEMENTS: RentStatement[] = [
-  {
-    id: 'demo-stmt-2026-02',
-    leaseId: 'demo-lease-001',
-    tenantUid: 'demo-tenant-001',
-    month: '2026-02',
-    status: 'open',
-    dueDate: '2026-02-01',
-    rentChargeCents: 150000,
-    balanceCents: 150000,
-    lateFeesEnabled: true,
-    lateFeesThroughDate: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 'demo-stmt-2026-01',
-    leaseId: 'demo-lease-001',
-    tenantUid: 'demo-tenant-001',
-    month: '2026-01',
-    status: 'paid',
-    dueDate: '2026-01-01',
-    rentChargeCents: 150000,
-    balanceCents: 0,
-    lateFeesEnabled: true,
-    lateFeesThroughDate: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    paidAt: new Date(2025, 11, 30),
-  },
-];
-
-const DEMO_LEDGER: Record<string, LedgerEntry[]> = {
-  'demo-stmt-2026-02': [
-    {
-      id: 'rent-charge-2026-02',
-      type: 'charge',
-      label: 'February 2026 Rent',
-      amountCents: 150000,
-      effectiveDate: '2026-02-01',
-      createdByUid: 'system',
-      createdAt: new Date(),
-    },
-  ],
-  'demo-stmt-2026-01': [
-    {
-      id: 'rent-charge-2026-01',
-      type: 'charge',
-      label: 'January 2026 Rent',
-      amountCents: 150000,
-      effectiveDate: '2026-01-01',
-      createdByUid: 'system',
-      createdAt: new Date(),
-    },
-    {
-      id: 'payment-2026-01',
-      type: 'payment',
-      label: 'Payment',
-      amountCents: -150000,
-      effectiveDate: '2025-12-30',
-      createdByUid: 'demo-tenant-001',
-      createdAt: new Date(),
-    },
-  ],
-};
-
 export function TenantRentHistoryPage() {
-  const { user, userProfile, isDemoMode } = useAuth();
+  const { user, userProfile } = useAuth();
   const [searchParams] = useSearchParams();
   const [statements, setStatements] = useState<RentStatement[]>([]);
   const [ledgerMap, setLedgerMap] = useState<Record<string, LedgerEntry[]>>({});
@@ -112,7 +45,7 @@ export function TenantRentHistoryPage() {
 
   useEffect(() => {
     loadStatements();
-  }, [userProfile, isDemoMode]);
+  }, [userProfile]);
 
   const loadStatements = async () => {
     if (!userProfile) return;
@@ -120,28 +53,29 @@ export function TenantRentHistoryPage() {
       setLoading(true);
       setError(null);
 
-      if (isDemoMode || !isFirebaseConfigured) {
-        setStatements(DEMO_STATEMENTS);
-        setLedgerMap(DEMO_LEDGER);
-      } else {
-        // Use server API to get statements (which applies late fees)
-        const token = user ? await user.getIdToken() : null;
-        if (token) {
-          const res = await fetch('/api/statements', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setStatements(data.statements || []);
-          } else {
-            // Fallback to direct Firestore read
-            const data = await rentStatementService.getByTenantUid(userProfile.uid);
-            setStatements(data);
-          }
+      if (!isFirebaseConfigured) {
+        setError('Payments are unavailable: Firebase is not configured.');
+        setStatements([]);
+        return;
+      }
+
+      // Use server API to get statements (which applies late fees)
+      const token = user ? await user.getIdToken() : null;
+      if (token) {
+        const res = await fetch('/api/statements', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStatements(data.statements || []);
         } else {
+          // Fallback to direct Firestore read
           const data = await rentStatementService.getByTenantUid(userProfile.uid);
           setStatements(data);
         }
+      } else {
+        const data = await rentStatementService.getByTenantUid(userProfile.uid);
+        setStatements(data);
       }
     } catch (err) {
       console.error('Error loading statements:', err);
@@ -153,7 +87,7 @@ export function TenantRentHistoryPage() {
 
   const loadLedger = async (statementId: string) => {
     if (ledgerMap[statementId]) return;
-    if (isDemoMode || !isFirebaseConfigured) return;
+    if (!isFirebaseConfigured) return;
 
     try {
       // Try server API first for late-fee-enriched data
@@ -192,12 +126,8 @@ export function TenantRentHistoryPage() {
   };
 
   const handlePay = async (statement: RentStatement) => {
-    if (!isStripeConfigured() && !isDemoMode) {
+    if (!isStripeConfigured()) {
       setError('Stripe is not configured. Please contact help@laneandkey.com.');
-      return;
-    }
-    if (isDemoMode) {
-      setError('Payment is disabled in demo mode.');
       return;
     }
 
@@ -280,13 +210,6 @@ export function TenantRentHistoryPage() {
           <button onClick={() => setError(null)}>×</button>
         </div>
       )}
-      {isDemoMode && (
-        <div className="alert alert-info">
-          <AlertCircle size={18} />
-          Demo Mode: Showing sample data. Configure Firebase to view real statements.
-        </div>
-      )}
-
       {/* Summary Card */}
       <div className="rent-summary">
         <div className="summary-card outstanding">

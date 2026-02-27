@@ -62,6 +62,7 @@ export function AdminDashboard() {
       const today = new Date();
       const sixtyDaysFromNow = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
       const renewals = leases.filter(lease => {
+        if (!lease.endDate) return false;
         const endDate = new Date(lease.endDate);
         return endDate >= today && endDate <= sixtyDaysFromNow;
       }).length;

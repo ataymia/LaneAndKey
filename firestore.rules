@@ -13,11 +13,22 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    function userRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    function isSelfUserUpdate(userId) {
+      return isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.currentLeaseId == resource.data.currentLeaseId
+        && request.resource.data.currentPropertyId == resource.data.currentPropertyId;
+    }
+
     // ─── Users ───
     match /users/{userId} {
       allow read: if request.auth != null && (isOwner(userId) || isAdmin());
       allow create: if request.auth != null && isOwner(userId);
-      allow update: if request.auth != null && (isOwner(userId) || isAdmin());
+      allow update: if request.auth != null && (isSelfUserUpdate(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
@@ -31,16 +42,30 @@ service cloud.firestore {
     match /applications/{appId} {
       allow read: if request.auth != null
         && (resource.data.primaryApplicantId == request.auth.uid || isAdmin());
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.primaryApplicantId == request.auth.uid;
       allow update: if request.auth != null
-        && (resource.data.primaryApplicantId == request.auth.uid || isAdmin());
+        && (
+          isAdmin()
+          || (
+            resource.data.primaryApplicantId == request.auth.uid
+            && request.resource.data.status == 'withdrawn'
+            && request.resource.data.primaryApplicantId == resource.data.primaryApplicantId
+            && request.resource.data.propertyId == resource.data.propertyId
+            && request.resource.data.leaseId == resource.data.leaseId
+          )
+        );
       allow delete: if isAdmin();
     }
 
     // ─── Leases ───
     match /leases/{leaseId} {
       allow read: if request.auth != null
-        && (request.auth.uid in resource.data.tenantIds || isAdmin());
+        && (
+          request.auth.uid in resource.data.tenantIds
+          || request.auth.uid == resource.data.tenantUid
+          || isAdmin()
+        );
       allow write: if isAdmin();
     }
 
@@ -62,7 +87,7 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if request.auth != null
         && (resource.data.tenantUid == request.auth.uid || isAdmin());
-      allow create: if request.auth != null;
+      allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if false;
     }
@@ -101,8 +126,16 @@ service cloud.firestore {
 
     // ─── Maintenance ───
     match /maintenance/{ticketId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
+      allow read: if request.auth != null
+        && (
+          resource.data.tenantId == request.auth.uid
+          || isAdmin()
+        );
+      allow create: if request.auth != null
+        && (
+          isAdmin()
+          || request.resource.data.tenantId == request.auth.uid
+        );
       allow update: if request.auth != null
         && (resource.data.tenantId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();

@@ -1,270 +1,157 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  CreditCard,
-  DollarSign,
-  CheckCircle,
-  Clock,
-  XCircle,
   AlertCircle,
   ArrowRight,
   Calendar,
-  Loader2,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  DollarSign,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts';
-import { invoiceService, paymentService, leaseService, isFirebaseConfigured } from '../../lib/firebase';
-import { redirectToCheckout, isStripeConfigured } from '../../lib/stripe';
-import type { Invoice, Payment, Lease } from '../../types';
+import { createCheckoutSession, isStripeConfigured } from '../../lib/stripe';
+import { getRentStatement, getRentStatements } from '../../lib/api/portalApi';
+import type { RentStatement } from '../../types';
 import './TenantPaymentsPage.css';
 
-// Demo data for when Firebase is not configured
-const DEMO_INVOICES: Invoice[] = [
-  {
-    id: 'demo-invoice-1',
-    tenantUid: 'demo-tenant-001',
-    tenantId: 'demo-tenant-001',
-    leaseId: 'demo-lease-001',
-    propertyId: 'demo-property-001',
-    type: 'rent',
-    description: 'January 2026 Rent',
-    amountCents: 150000, // $1,500
-    dueDate: new Date(2026, 0, 1), // Jan 1, 2026
-    status: 'due',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 'demo-invoice-2',
-    tenantUid: 'demo-tenant-001',
-    tenantId: 'demo-tenant-001',
-    leaseId: 'demo-lease-001',
-    propertyId: 'demo-property-001',
-    type: 'rent',
-    description: 'February 2026 Rent',
-    amountCents: 150000, // $1,500
-    dueDate: new Date(2026, 1, 1), // Feb 1, 2026
-    status: 'due',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
-
-const DEMO_PAYMENTS: Payment[] = [
-  {
-    id: 'demo-payment-1',
-    leaseId: 'demo-lease-001',
-    tenantId: 'demo-tenant-001',
-    tenantUid: 'demo-tenant-001',
-    propertyId: 'demo-property-001',
-    invoiceId: 'demo-invoice-0',
-    amount: 150000,
-    type: 'rent',
-    method: 'stripe',
-    status: 'completed',
-    dueDate: new Date(2025, 11, 1),
-    paidDate: new Date(2025, 10, 28),
-    createdAt: new Date(2025, 10, 28),
-    updatedAt: new Date(2025, 10, 28),
-  },
-  {
-    id: 'demo-payment-2',
-    leaseId: 'demo-lease-001',
-    tenantId: 'demo-tenant-001',
-    tenantUid: 'demo-tenant-001',
-    propertyId: 'demo-property-001',
-    amount: 300000,
-    type: 'deposit',
-    method: 'stripe',
-    status: 'completed',
-    dueDate: new Date(2025, 5, 1),
-    paidDate: new Date(2025, 5, 1),
-    createdAt: new Date(2025, 5, 1),
-    updatedAt: new Date(2025, 5, 1),
-  },
-];
-
-const DEMO_LEASE: Lease = {
-  id: 'demo-lease-001',
-  propertyId: 'demo-property-001',
-  tenantIds: ['demo-tenant-001'],
-  startDate: new Date(2025, 5, 1),
-  endDate: new Date(2026, 5, 1),
-  monthlyRent: 1500,
-  securityDeposit: 3000,
-  rentDueDay: 1,
-  gracePeriodDays: 5,
-  attachments: [],
-  status: 'active',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+interface LedgerItem {
+  id: string;
+  amountCents: number;
+  label: string;
+  type: string;
+  effectiveDate: string;
+}
 
 export function TenantPaymentsPage() {
-  const { userProfile, isDemoMode } = useAuth();
+  const { userProfile } = useAuth();
   const [searchParams] = useSearchParams();
-  
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [lease, setLease] = useState<Lease | null>(null);
   const [loading, setLoading] = useState(true);
-  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
-  // Check for success/cancel from Stripe redirect
+  const [statements, setStatements] = useState<RentStatement[]>([]);
+  const [ledgerByStatement, setLedgerByStatement] = useState<Record<string, LedgerItem[]>>({});
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [payAmounts, setPayAmounts] = useState<Record<string, string>>({});
+
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
     const canceled = searchParams.get('canceled');
-    
+
     if (sessionId) {
-      setSuccessMessage('Payment successful! Thank you for your payment.');
-      // Clear the URL params
+      setSuccessMessage('Payment submitted successfully. Ledger will update after Stripe confirmation.');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (canceled) {
-      setError('Payment was canceled. You can try again when ready.');
+      setError('Payment was canceled.');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
-  
-  // Load data
+
   useEffect(() => {
-    async function loadData() {
+    const load = async () => {
       if (!userProfile) return;
-      
+
       try {
         setLoading(true);
-        
-        if (isDemoMode || !isFirebaseConfigured) {
-          // Use demo data
-          setInvoices(DEMO_INVOICES);
-          setPayments(DEMO_PAYMENTS);
-          setLease(DEMO_LEASE);
-        } else {
-          // Load from Firestore
-          const [invoicesData, paymentsData] = await Promise.all([
-            invoiceService.getByTenantUid(userProfile.uid),
-            paymentService.getByTenantUid(userProfile.uid),
-          ]);
-          
-          setInvoices(invoicesData);
-          setPayments(paymentsData);
-          
-          // Try to get the current lease
-          // In a real app, you'd have a better way to link user to tenant/lease
-          if (invoicesData.length > 0 && invoicesData[0].leaseId) {
-            const leaseData = await leaseService.get(invoicesData[0].leaseId);
-            setLease(leaseData);
-          }
+        setError(null);
+
+        const response = await getRentStatements();
+        const loadedStatements = response.statements || [];
+        setStatements(loadedStatements);
+
+        const openStatement = loadedStatements.find((statement) => statement.status === 'open');
+        if (openStatement) {
+          const statementDetail = await getRentStatement(openStatement.id);
+          setLedgerByStatement((previous) => ({
+            ...previous,
+            [openStatement.id]: statementDetail.ledger || [],
+          }));
         }
-      } catch (err) {
-        console.error('Error loading payment data:', err);
-        setError('Failed to load payment data');
+      } catch (loadError) {
+        console.error('Error loading tenant payments:', loadError);
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load payment data');
       } finally {
         setLoading(false);
       }
-    }
-    
-    loadData();
-  }, [userProfile, isDemoMode]);
-  
-  const handlePayInvoice = async (invoice: Invoice) => {
-    if (!isStripeConfigured() && !isDemoMode) {
+    };
+
+    load();
+  }, [userProfile]);
+
+  const currentStatement = useMemo(() => {
+    const open = statements.filter((statement) => statement.status === 'open' && statement.balanceCents > 0);
+    return open.sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))[0] || null;
+  }, [statements]);
+
+  const paymentHistory = useMemo(() => {
+    const entries: Array<LedgerItem & { month: string }> = [];
+    Object.entries(ledgerByStatement).forEach(([statementId, ledger]) => {
+      const statement = statements.find((item) => item.id === statementId);
+      const month = statement?.month || '';
+      ledger.forEach((entry) => {
+        if (entry.type === 'payment' || entry.amountCents < 0) {
+          entries.push({ ...entry, month });
+        }
+      });
+    });
+    return entries.sort((a, b) => String(b.effectiveDate).localeCompare(String(a.effectiveDate)));
+  }, [ledgerByStatement, statements]);
+
+  const totalDue = statements
+    .filter((statement) => statement.status === 'open')
+    .reduce((sum, statement) => sum + statement.balanceCents, 0);
+
+  const totalPaid = paymentHistory.reduce((sum, entry) => sum + Math.abs(entry.amountCents), 0);
+
+  const formatCurrency = (cents: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+
+  const formatDate = (value: string | Date) =>
+    new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const formatMonth = (month: string) => {
+    const [year, mo] = month.split('-');
+    return new Date(Number(year), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handlePayRent = async (statement: RentStatement) => {
+    if (!isStripeConfigured()) {
       setError('Stripe is not configured. Please contact support.');
       return;
     }
-    
-    if (isDemoMode) {
-      setError('Payment is disabled in demo mode. Configure Firebase and Stripe to enable payments.');
+
+    const customAmount = payAmounts[statement.id];
+    const amountCents = customAmount ? Math.round(Number(customAmount) * 100) : statement.balanceCents;
+
+    if (!Number.isFinite(amountCents) || amountCents < 100) {
+      setError('Minimum payment is $1.00');
       return;
     }
-    
+
+    if (amountCents > statement.balanceCents) {
+      setError(`Maximum payment is ${formatCurrency(statement.balanceCents)}`);
+      return;
+    }
+
     try {
-      setPaymentLoading(invoice.id);
+      setPaymentLoading(statement.id);
       setError(null);
-      
-      await redirectToCheckout({
-        type: invoice.type as 'rent' | 'deposit' | 'fee' | 'late_fee' | 'application_fee',
-        amount: invoice.amountCents,
-        description: invoice.description,
-        invoiceId: invoice.id,
-        leaseId: invoice.leaseId,
+      const session = await createCheckoutSession({
+        type: 'rent',
+        statementId: statement.id,
+        amountCents,
+        description: `Rent Payment - ${formatMonth(statement.month)}`,
       });
-    } catch (err) {
-      console.error('Payment error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to initiate payment');
+      window.location.href = session.url;
+    } catch (paymentError) {
+      console.error('Failed to start payment:', paymentError);
+      setError(paymentError instanceof Error ? paymentError.message : 'Failed to initiate payment');
       setPaymentLoading(null);
     }
   };
-  
-  const formatCurrency = (cents: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(cents / 100);
-  };
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-  
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-      case 'completed':
-        return (
-          <span className="badge badge-success">
-            <CheckCircle size={14} />
-            Paid
-          </span>
-        );
-      case 'due':
-        return (
-          <span className="badge badge-warning">
-            <Clock size={14} />
-            Due
-          </span>
-        );
-      case 'overdue':
-        return (
-          <span className="badge badge-error">
-            <AlertCircle size={14} />
-            Overdue
-          </span>
-        );
-      case 'pending':
-      case 'processing':
-        return (
-          <span className="badge badge-info">
-            <Clock size={14} />
-            Processing
-          </span>
-        );
-      case 'failed':
-        return (
-          <span className="badge badge-error">
-            <XCircle size={14} />
-            Failed
-          </span>
-        );
-      default:
-        return <span className="badge badge-gray">{status}</span>;
-    }
-  };
-  
-  // Calculate totals
-  const totalDue = invoices
-    .filter(inv => inv.status === 'due' || inv.status === 'overdue')
-    .reduce((sum, inv) => sum + inv.amountCents, 0);
-  
-  const totalPaid = payments
-    .filter(p => p.status === 'completed')
-    .reduce((sum, p) => sum + p.amount, 0);
-  
+
   if (loading) {
     return (
       <div className="page tenant-payments-page">
@@ -275,17 +162,29 @@ export function TenantPaymentsPage() {
       </div>
     );
   }
-  
+
+  if (!userProfile?.currentLeaseId) {
+    return (
+      <div className="page tenant-payments-page">
+        <div className="page-header">
+          <div>
+            <h1>Payments</h1>
+            <p>No lease assigned. Contact management.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page tenant-payments-page">
       <div className="page-header">
         <div>
           <h1>Payments</h1>
-          <p>View and pay your rent, deposits, and fees</p>
+          <p>Rent statements, ledger, and payment history</p>
         </div>
       </div>
-      
-      {/* Success/Error Messages */}
+
       {successMessage && (
         <div className="alert alert-success">
           <CheckCircle size={18} />
@@ -293,7 +192,7 @@ export function TenantPaymentsPage() {
           <button onClick={() => setSuccessMessage(null)}>×</button>
         </div>
       )}
-      
+
       {error && (
         <div className="alert alert-error">
           <AlertCircle size={18} />
@@ -301,150 +200,95 @@ export function TenantPaymentsPage() {
           <button onClick={() => setError(null)}>×</button>
         </div>
       )}
-      
-      {/* Demo Mode Notice */}
-      {isDemoMode && (
-        <div className="alert alert-info">
-          <AlertCircle size={18} />
-          Demo Mode: Payment processing is simulated. Configure Firebase and Stripe to enable real payments.
-        </div>
-      )}
-      
-      {/* Summary Cards */}
+
       <div className="summary-cards">
         <div className="summary-card outstanding">
-          <div className="summary-icon">
-            <DollarSign size={24} />
-          </div>
+          <div className="summary-icon"><DollarSign size={24} /></div>
           <div className="summary-content">
             <h3>Amount Due</h3>
             <div className="summary-amount">{formatCurrency(totalDue)}</div>
           </div>
         </div>
-        
         <div className="summary-card paid">
-          <div className="summary-icon">
-            <CheckCircle size={24} />
-          </div>
+          <div className="summary-icon"><CheckCircle size={24} /></div>
           <div className="summary-content">
             <h3>Total Paid</h3>
             <div className="summary-amount">{formatCurrency(totalPaid)}</div>
           </div>
         </div>
-        
-        {lease && (
-          <div className="summary-card rent">
-            <div className="summary-icon">
-              <Calendar size={24} />
-            </div>
-            <div className="summary-content">
-              <h3>Monthly Rent</h3>
-              <div className="summary-amount">{formatCurrency(lease.monthlyRent * 100)}</div>
-              <span className="summary-note">Due on the {lease.rentDueDay}st</span>
-            </div>
+        <div className="summary-card rent">
+          <div className="summary-icon"><Calendar size={24} /></div>
+          <div className="summary-content">
+            <h3>Policy</h3>
+            <div className="summary-amount">Rent due on the 1st</div>
+            <span className="summary-note">Late fees start on the 5th: $25 + $10/day</span>
           </div>
-        )}
+        </div>
       </div>
-      
-      {/* Outstanding Invoices */}
+
       <section className="payments-section">
-        <h2>
-          <CreditCard size={20} />
-          Outstanding Invoices
-        </h2>
-        
-        {invoices.filter(inv => inv.status === 'due' || inv.status === 'overdue').length > 0 ? (
-          <div className="invoices-list">
-            {invoices
-              .filter(inv => inv.status === 'due' || inv.status === 'overdue')
-              .map(invoice => (
-                <div key={invoice.id} className={`invoice-card ${invoice.status}`}>
-                  <div className="invoice-info">
-                    <div className="invoice-header">
-                      <h3>{invoice.description}</h3>
-                      {getStatusBadge(invoice.status)}
-                    </div>
-                    <div className="invoice-details">
-                      <span className="invoice-type">{invoice.type}</span>
-                      <span className="invoice-due">
-                        <Calendar size={14} />
-                        Due {formatDate(invoice.dueDate)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="invoice-action">
-                    <div className="invoice-amount">
-                      {formatCurrency(invoice.amountCents)}
-                    </div>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => handlePayInvoice(invoice)}
-                      disabled={paymentLoading === invoice.id}
-                    >
-                      {paymentLoading === invoice.id ? (
-                        <>
-                          <Loader2 className="spinner" size={16} />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          Pay Now
-                          <ArrowRight size={16} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <h2><CreditCard size={20} /> Current Statement</h2>
+
+        {currentStatement ? (
+          <div className="invoice-card due">
+            <div className="invoice-info">
+              <div className="invoice-header">
+                <h3>{formatMonth(currentStatement.month)}</h3>
+                <span className="badge badge-warning"><Clock size={14} /> Open</span>
+              </div>
+              <div className="invoice-details">
+                <span className="invoice-type">Rent Statement</span>
+                <span className="invoice-due"><Calendar size={14} /> Due {formatDate(currentStatement.dueDate)}</span>
+              </div>
+            </div>
+            <div className="invoice-action">
+              <div className="invoice-amount">{formatCurrency(currentStatement.balanceCents)}</div>
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                placeholder="Optional partial amount"
+                value={payAmounts[currentStatement.id] || ''}
+                onChange={(event) => setPayAmounts((previous) => ({ ...previous, [currentStatement.id]: event.target.value }))}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => handlePayRent(currentStatement)}
+                disabled={paymentLoading === currentStatement.id}
+              >
+                {paymentLoading === currentStatement.id ? <><Loader2 className="spinner" size={16} /> Processing...</> : <>Pay Rent <ArrowRight size={16} /></>}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="empty-state">
             <CheckCircle size={48} className="text-success" />
-            <h3>All Caught Up!</h3>
-            <p>You have no outstanding invoices.</p>
+            <h3>No Open Balance</h3>
+            <p>You have no open statement balance right now.</p>
           </div>
         )}
       </section>
-      
-      {/* Payment History */}
+
       <section className="payments-section">
-        <h2>
-          <Clock size={20} />
-          Payment History
-        </h2>
-        
-        {payments.length > 0 ? (
+        <h2><Clock size={20} /> Payment History</h2>
+        {paymentHistory.length > 0 ? (
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
                   <th>Date</th>
+                  <th>Month</th>
                   <th>Description</th>
-                  <th>Type</th>
-                  <th>Method</th>
                   <th>Amount</th>
-                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.map(payment => (
-                  <tr key={payment.id}>
-                    <td>{payment.paidDate ? formatDate(payment.paidDate) : formatDate(payment.createdAt)}</td>
-                    <td>{payment.type === 'rent' ? `${getMonthName(payment.dueDate)} Rent` : formatPaymentType(payment.type)}</td>
-                    <td><span className="badge badge-gray">{formatPaymentType(payment.type)}</span></td>
-                    <td>
-                      {payment.method === 'stripe' ? (
-                        <span className="payment-method">
-                          <CreditCard size={14} />
-                          Card
-                        </span>
-                      ) : (
-                        payment.method
-                      )}
-                    </td>
-                    <td className="amount">{formatCurrency(payment.amount)}</td>
-                    <td>{getStatusBadge(payment.status)}</td>
+                {paymentHistory.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{formatDate(entry.effectiveDate)}</td>
+                    <td>{entry.month ? formatMonth(entry.month) : '-'}</td>
+                    <td>{entry.label}</td>
+                    <td className="amount">{formatCurrency(Math.abs(entry.amountCents))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -454,34 +298,17 @@ export function TenantPaymentsPage() {
           <div className="empty-state">
             <Clock size={48} />
             <h3>No Payment History</h3>
-            <p>Your payment history will appear here after you make payments.</p>
+            <p>Payments will appear after successful processing.</p>
           </div>
         )}
       </section>
-      
-      {/* Stripe Notice */}
+
       {isStripeConfigured() && (
         <div className="stripe-notice">
           <ExternalLink size={14} />
-          Payments are securely processed by Stripe. Your card information is never stored on our servers.
+          Payments are securely processed by Stripe.
         </div>
       )}
     </div>
   );
-}
-
-function getMonthName(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-function formatPaymentType(type: string): string {
-  const types: Record<string, string> = {
-    rent: 'Rent',
-    deposit: 'Deposit',
-    fee: 'Fee',
-    late_fee: 'Late Fee',
-    application_fee: 'Application Fee',
-    other: 'Other',
-  };
-  return types[type] || type;
 }

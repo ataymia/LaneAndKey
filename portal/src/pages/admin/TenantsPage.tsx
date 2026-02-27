@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { alertService } from '../../lib/firebase/firestore';
+import { assignLease } from '../../lib/api/portalApi';
 import type { UserProfile, Tenant, Property } from '../../types';
 import {
   Users,
@@ -33,7 +34,17 @@ export function TenantsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProperty, setFilterProperty] = useState('all');
-  const [, setProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+
+  // Assign lease modal
+  const [assignTarget, setAssignTarget] = useState<TenantRow | null>(null);
+  const [assignForm, setAssignForm] = useState({
+    propertyId: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    rentAmountCents: '',
+    depositAmountCents: '',
+  });
+  const [assigning, setAssigning] = useState(false);
 
   // Notice modal
   const [noticeTarget, setNoticeTarget] = useState<TenantRow | null>(null);
@@ -124,6 +135,48 @@ export function TenantsPage() {
       alert('Failed to send notice.');
     } finally {
       setSendingNotice(false);
+    }
+  };
+
+  const openAssignModal = (tenant: TenantRow) => {
+    setAssignTarget(tenant);
+    setAssignForm({
+      propertyId: '',
+      startDate: new Date().toISOString().slice(0, 10),
+      rentAmountCents: '',
+      depositAmountCents: '',
+    });
+  };
+
+  const handleAssignLease = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!assignTarget || !assignForm.propertyId) return;
+
+    const rentAmountCents = Math.round(Number(assignForm.rentAmountCents));
+    const depositAmountCents = Math.round(Number(assignForm.depositAmountCents || 0));
+
+    if (!Number.isFinite(rentAmountCents) || rentAmountCents <= 0) {
+      alert('Rent amount must be a valid positive cent value.');
+      return;
+    }
+
+    try {
+      setAssigning(true);
+      await assignLease({
+        tenantUid: assignTarget.uid,
+        propertyId: assignForm.propertyId,
+        startDate: assignForm.startDate,
+        rentAmountCents,
+        depositAmountCents,
+        endCurrentLease: true,
+      });
+      setAssignTarget(null);
+      await fetchTenants();
+    } catch (error) {
+      console.error('Failed to assign lease:', error);
+      alert(error instanceof Error ? error.message : 'Failed to assign lease.');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -238,6 +291,13 @@ export function TenantsPage() {
                   <td>
                     <div className="tenant-actions">
                       <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => openAssignModal(tenant)}
+                        title="Assign property"
+                      >
+                        Assign Lease
+                      </button>
+                      <button
                         className="btn btn-sm btn-outline"
                         onClick={() => { setNoticeTarget(tenant); setNoticeForm({ title: '', message: '' }); }}
                         title="Send notice"
@@ -287,6 +347,71 @@ export function TenantsPage() {
                 <button type="button" className="btn btn-outline" onClick={() => setNoticeTarget(null)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={sendingNotice}>
                   {sendingNotice ? 'Sending…' : 'Send Notice'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Lease Modal */}
+      {assignTarget && (
+        <div className="modal-overlay" onClick={() => setAssignTarget(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Assign Lease</h2>
+              <button className="modal-close" onClick={() => setAssignTarget(null)}><X size={20} /></button>
+            </div>
+            <p className="notice-to">Tenant: <strong>{assignTarget.displayName}</strong> ({assignTarget.email})</p>
+            <form onSubmit={handleAssignLease} className="modal-body">
+              <label className="form-label">
+                Property
+                <select
+                  value={assignForm.propertyId}
+                  onChange={e => setAssignForm(f => ({ ...f, propertyId: e.target.value }))}
+                  required
+                >
+                  <option value="">Select property</option>
+                  {properties.map(property => (
+                    <option key={property.id} value={property.id}>
+                      {property.address}{property.unit ? ` #${property.unit}` : ''} ({property.occupancyStatus})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-label">
+                Lease Start Date
+                <input
+                  type="date"
+                  value={assignForm.startDate}
+                  onChange={e => setAssignForm(f => ({ ...f, startDate: e.target.value }))}
+                  required
+                />
+              </label>
+              <label className="form-label">
+                Rent Amount (cents)
+                <input
+                  type="number"
+                  min="1"
+                  value={assignForm.rentAmountCents}
+                  onChange={e => setAssignForm(f => ({ ...f, rentAmountCents: e.target.value }))}
+                  required
+                />
+              </label>
+              <label className="form-label">
+                Deposit Amount (cents)
+                <input
+                  type="number"
+                  min="0"
+                  value={assignForm.depositAmountCents}
+                  onChange={e => setAssignForm(f => ({ ...f, depositAmountCents: e.target.value }))}
+                />
+              </label>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setAssignTarget(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={assigning}>
+                  {assigning ? 'Assigning…' : 'Assign Lease'}
                 </button>
               </div>
             </form>
