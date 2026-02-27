@@ -10,6 +10,7 @@ import {
   DollarSign,
   ExternalLink,
   Loader2,
+  Receipt,
 } from 'lucide-react';
 import { useAuth } from '../../contexts';
 import { createCheckoutSession, isStripeConfigured } from '../../lib/stripe';
@@ -61,14 +62,23 @@ export function TenantPaymentsPage() {
         const loadedStatements = response.statements || [];
         setStatements(loadedStatements);
 
-        const openStatement = loadedStatements.find((statement) => statement.status === 'open');
-        if (openStatement) {
-          const statementDetail = await getRentStatement(openStatement.id);
-          setLedgerByStatement((previous) => ({
-            ...previous,
-            [openStatement.id]: statementDetail.ledger || [],
-          }));
-        }
+        const statementDetails = await Promise.all(
+          loadedStatements.map(async (statement) => {
+            try {
+              const detail = await getRentStatement(statement.id);
+              return { statementId: statement.id, ledger: detail.ledger || [] };
+            } catch (detailError) {
+              console.error(`Failed to load statement detail for ${statement.id}:`, detailError);
+              return { statementId: statement.id, ledger: [] };
+            }
+          })
+        );
+
+        const nextLedgerMap: Record<string, LedgerItem[]> = {};
+        statementDetails.forEach((detail) => {
+          nextLedgerMap[detail.statementId] = detail.ledger;
+        });
+        setLedgerByStatement(nextLedgerMap);
       } catch (loadError) {
         console.error('Error loading tenant payments:', loadError);
         setError(loadError instanceof Error ? loadError.message : 'Failed to load payment data');
@@ -98,6 +108,13 @@ export function TenantPaymentsPage() {
     });
     return entries.sort((a, b) => String(b.effectiveDate).localeCompare(String(a.effectiveDate)));
   }, [ledgerByStatement, statements]);
+
+  const currentStatementLedger = useMemo(() => {
+    if (!currentStatement) return [];
+    return [...(ledgerByStatement[currentStatement.id] || [])].sort((a, b) =>
+      String(a.effectiveDate).localeCompare(String(b.effectiveDate))
+    );
+  }, [currentStatement, ledgerByStatement]);
 
   const totalDue = statements
     .filter((statement) => statement.status === 'open')
@@ -265,6 +282,43 @@ export function TenantPaymentsPage() {
             <CheckCircle size={48} className="text-success" />
             <h3>No Open Balance</h3>
             <p>You have no open statement balance right now.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="payments-section">
+        <h2><Receipt size={20} /> Statement Breakdown</h2>
+        {currentStatement && currentStatementLedger.length > 0 ? (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentStatementLedger.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{formatDate(entry.effectiveDate)}</td>
+                    <td>{entry.type}</td>
+                    <td>{entry.label}</td>
+                    <td className="amount">
+                      {entry.amountCents < 0 ? '-' : ''}
+                      {formatCurrency(Math.abs(entry.amountCents))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <Receipt size={48} />
+            <h3>No Breakdown Available</h3>
+            <p>Statement line items will appear once charges or fees are posted.</p>
           </div>
         )}
       </section>
