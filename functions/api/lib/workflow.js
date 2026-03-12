@@ -10,40 +10,44 @@ function todayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export async function findActiveLeaseByTenant(projectId, tenantUid) {
-  const result = await queryDocuments(
-    projectId,
-    'leases',
-    [
-      { field: 'tenantUid', op: 'EQUAL', value: tenantUid },
-      { field: 'status', op: 'EQUAL', value: 'active' },
-    ],
-    { field: 'createdAt', direction: 'DESCENDING' }
-  );
-  return result[0] || null;
-}
-
-export async function findPendingOrActiveLeaseByTenant(projectId, tenantUid) {
+export async function findActiveLeaseByTenant(projectId, tenantUid, idToken) {
+  // Single-field filter avoids composite index requirement.
+  // Lease count per tenant is small; filter/sort client-side.
   const result = await queryDocuments(
     projectId,
     'leases',
     [{ field: 'tenantUid', op: 'EQUAL', value: tenantUid }],
-    { field: 'createdAt', direction: 'DESCENDING' }
+    null,
+    idToken
   );
-  return result.find((l) => l.status === 'active' || l.status === 'pending') || null;
+  return result
+    .filter((l) => l.status === 'active')
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
 }
 
-export async function findActiveLeaseByProperty(projectId, propertyId) {
+export async function findPendingOrActiveLeaseByTenant(projectId, tenantUid, idToken) {
   const result = await queryDocuments(
     projectId,
     'leases',
-    [
-      { field: 'propertyId', op: 'EQUAL', value: propertyId },
-      { field: 'status', op: 'EQUAL', value: 'active' },
-    ],
-    { field: 'createdAt', direction: 'DESCENDING' }
+    [{ field: 'tenantUid', op: 'EQUAL', value: tenantUid }],
+    null,
+    idToken
   );
-  return result[0] || null;
+  const sorted = result.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  return sorted.find((l) => l.status === 'active' || l.status === 'pending') || null;
+}
+
+export async function findActiveLeaseByProperty(projectId, propertyId, idToken) {
+  const result = await queryDocuments(
+    projectId,
+    'leases',
+    [{ field: 'propertyId', op: 'EQUAL', value: propertyId }],
+    null,
+    idToken
+  );
+  return result
+    .filter((l) => l.status === 'active')
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
 }
 
 export async function getOrCreateMonthlyStatement({
@@ -53,6 +57,9 @@ export async function getOrCreateMonthlyStatement({
   dueDate,
   createdByUid,
 }) {
+  // Two equality filters on leaseId+month are served by the existing
+  // composite index (leaseId ASC, month DESC).  No orderBy needed since
+  // at most one statement exists per lease+month.
   const existing = await queryDocuments(
     projectId,
     'rentStatements',
@@ -60,7 +67,7 @@ export async function getOrCreateMonthlyStatement({
       { field: 'leaseId', op: 'EQUAL', value: lease.id },
       { field: 'month', op: 'EQUAL', value: month },
     ],
-    { field: 'createdAt', direction: 'DESCENDING' }
+    null
   );
 
   if (existing[0]) {

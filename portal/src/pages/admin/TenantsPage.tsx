@@ -41,10 +41,12 @@ export function TenantsPage() {
   const [assignForm, setAssignForm] = useState({
     propertyId: '',
     startDate: new Date().toISOString().slice(0, 10),
-    rentAmountCents: '',
-    depositAmountCents: '',
+    rentDollars: '',
+    depositDollars: '',
   });
   const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
 
   // Notice modal
   const [noticeTarget, setNoticeTarget] = useState<TenantRow | null>(null);
@@ -140,25 +142,44 @@ export function TenantsPage() {
 
   const openAssignModal = (tenant: TenantRow) => {
     setAssignTarget(tenant);
+    setAssignError(null);
+    setAssignSuccess(null);
     setAssignForm({
       propertyId: '',
       startDate: new Date().toISOString().slice(0, 10),
-      rentAmountCents: '',
-      depositAmountCents: '',
+      rentDollars: '',
+      depositDollars: '',
+    });
+  };
+
+  // Auto-fill rent/deposit when a property is selected
+  const handlePropertyChange = (propertyId: string) => {
+    setAssignForm((f) => {
+      const prop = properties.find((p) => p.id === propertyId);
+      return {
+        ...f,
+        propertyId,
+        rentDollars: prop?.monthlyRent ? String(prop.monthlyRent) : '',
+        depositDollars: prop?.securityDeposit ? String(prop.securityDeposit) : '',
+      };
     });
   };
 
   const handleAssignLease = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!assignTarget || !assignForm.propertyId) return;
+    setAssignError(null);
 
-    const rentAmountCents = Math.round(Number(assignForm.rentAmountCents));
-    const depositAmountCents = Math.round(Number(assignForm.depositAmountCents || 0));
+    const rentDollars = Number(assignForm.rentDollars);
+    const depositDollars = Number(assignForm.depositDollars || 0);
 
-    if (!Number.isFinite(rentAmountCents) || rentAmountCents <= 0) {
-      alert('Rent amount must be a valid positive cent value.');
+    if (!Number.isFinite(rentDollars) || rentDollars <= 0) {
+      setAssignError('Rent amount must be a valid positive value.');
       return;
     }
+
+    const rentAmountCents = Math.round(rentDollars * 100);
+    const depositAmountCents = Math.round(depositDollars * 100);
 
     try {
       setAssigning(true);
@@ -170,11 +191,19 @@ export function TenantsPage() {
         depositAmountCents,
         endCurrentLease: true,
       });
+      setAssignSuccess(`Lease assigned to ${assignTarget.displayName} successfully.`);
       setAssignTarget(null);
       await fetchTenants();
+      // Auto-dismiss success after 4 seconds
+      setTimeout(() => setAssignSuccess(null), 4000);
     } catch (error) {
-      console.error('Failed to assign lease:', error);
-      alert(error instanceof Error ? error.message : 'Failed to assign lease.');
+      console.error('Assign lease failed:', { error, propertyId: assignForm.propertyId, tenantUid: assignTarget.uid });
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('FAILED_PRECONDITION') || msg.includes('index')) {
+        setAssignError('Database index missing for this query. Please deploy Firestore indexes (see docs). Run: firebase deploy --only firestore:indexes');
+      } else {
+        setAssignError(msg || 'Failed to assign lease.');
+      }
     } finally {
       setAssigning(false);
     }
@@ -214,6 +243,11 @@ export function TenantsPage() {
 
   return (
     <div className="tenants-page">
+      {assignSuccess && (
+        <div style={{ background: '#dcfce7', color: '#166534', padding: '0.75rem 1rem', borderRadius: '0.375rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>&#10003;</span> {assignSuccess}
+        </div>
+      )}
       <div className="page-header">
         <div>
           <h1>Tenants</h1>
@@ -364,11 +398,16 @@ export function TenantsPage() {
             </div>
             <p className="notice-to">Tenant: <strong>{assignTarget.displayName}</strong> ({assignTarget.email})</p>
             <form onSubmit={handleAssignLease} className="modal-body">
+              {assignError && (
+                <div className="form-error" style={{ color: '#dc2626', background: '#fef2f2', padding: '0.75rem 1rem', borderRadius: '0.375rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                  {assignError}
+                </div>
+              )}
               <label className="form-label">
                 Property
                 <select
                   value={assignForm.propertyId}
-                  onChange={e => setAssignForm(f => ({ ...f, propertyId: e.target.value }))}
+                  onChange={e => handlePropertyChange(e.target.value)}
                   required
                 >
                   <option value="">Select property</option>
@@ -389,22 +428,26 @@ export function TenantsPage() {
                 />
               </label>
               <label className="form-label">
-                Rent Amount (cents)
+                Monthly Rent ($)
                 <input
                   type="number"
                   min="1"
-                  value={assignForm.rentAmountCents}
-                  onChange={e => setAssignForm(f => ({ ...f, rentAmountCents: e.target.value }))}
+                  step="0.01"
+                  placeholder="e.g. 1500.00"
+                  value={assignForm.rentDollars}
+                  onChange={e => setAssignForm(f => ({ ...f, rentDollars: e.target.value }))}
                   required
                 />
               </label>
               <label className="form-label">
-                Deposit Amount (cents)
+                Security Deposit ($)
                 <input
                   type="number"
                   min="0"
-                  value={assignForm.depositAmountCents}
-                  onChange={e => setAssignForm(f => ({ ...f, depositAmountCents: e.target.value }))}
+                  step="0.01"
+                  placeholder="e.g. 1500.00"
+                  value={assignForm.depositDollars}
+                  onChange={e => setAssignForm(f => ({ ...f, depositDollars: e.target.value }))}
                 />
               </label>
 

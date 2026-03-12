@@ -33,27 +33,29 @@ export async function onRequestPost(context) {
     if (tenantUser.role !== 'tenant') return jsonResponse({ error: 'User is not a tenant' }, 400, env);
     if (!property) return jsonResponse({ error: 'Property not found' }, 404, env);
 
-    const activeTenantLeases = await queryDocuments(
+    // Use single-field filter only — avoids needing composite index.
+    // Result sets are small (few leases per tenant), so client-side filter is fine.
+    const tenantLeases = await queryDocuments(
       projectId,
       'leases',
       [{ field: 'tenantUid', op: 'EQUAL', value: tenantUid }],
-      { field: 'createdAt', direction: 'DESCENDING' },
+      null,
       idToken
     );
-    const activeLease = activeTenantLeases.find((lease) => lease.status === 'active');
+    const activeLease = tenantLeases.find((lease) => lease.status === 'active');
 
     if (activeLease && !endCurrentLease) {
       return jsonResponse({ error: 'Tenant already has an active lease. Set endCurrentLease=true to reassign.' }, 409, env);
     }
 
-    const activePropertyLeases = await queryDocuments(
+    const propertyLeases = await queryDocuments(
       projectId,
       'leases',
       [{ field: 'propertyId', op: 'EQUAL', value: propertyId }],
-      { field: 'createdAt', direction: 'DESCENDING' },
+      null,
       idToken
     );
-    const propertyActiveLease = activePropertyLeases.find((lease) => lease.status === 'active');
+    const propertyActiveLease = propertyLeases.find((lease) => lease.status === 'active');
     if (propertyActiveLease && propertyActiveLease.tenantUid !== tenantUid) {
       return jsonResponse({ error: 'Property already has an active lease' }, 409, env);
     }

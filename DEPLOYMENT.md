@@ -124,6 +124,55 @@ You can set different credentials for different environments:
 - **Production**: Set via Cloudflare Pages > Settings > Environment variables > Production
 - **Preview**: Set via Cloudflare Pages > Settings > Environment variables > Preview
 
+## Firestore Composite Indexes
+
+The application requires composite Firestore indexes for several queries (leases, invoices, payments, etc.).
+All required indexes are defined in `firestore.indexes.json` at the repo root.
+
+### Deploying Indexes
+
+```bash
+# Install Firebase CLI (if not already installed)
+npm install -g firebase-tools
+
+# Login to Firebase
+firebase login
+
+# Deploy indexes only (project: laneandkey1)
+firebase deploy --only firestore:indexes --project laneandkey1
+```
+
+### When to Deploy Indexes
+
+You must deploy indexes:
+- On initial project setup
+- Any time `firestore.indexes.json` is updated
+- If any admin action shows "Database index missing" or `FAILED_PRECONDITION` errors
+
+Index creation typically takes 1–5 minutes. You can monitor progress in the
+[Firebase Console → Firestore → Indexes](https://console.firebase.google.com/project/laneandkey1/firestore/indexes).
+
+### Current Indexes
+
+| Collection | Fields | Purpose |
+|---|---|---|
+| `leases` | tenantUid ↑, createdAt ↓ | Find leases by tenant |
+| `leases` | propertyId ↑, createdAt ↓ | Find leases by property |
+| `leases` | tenantUid ↑, status ↑, createdAt ↓ | Find active lease for tenant |
+| `leases` | propertyId ↑, status ↑, createdAt ↓ | Find active lease for property |
+| `rentStatements` | tenantUid ↑, month ↓ | Tenant's rent history |
+| `rentStatements` | leaseId ↑, month ↓ | Statements by lease |
+| `payments` | tenantId ↑, createdAt ↓ | Payment history |
+| `payments` | propertyId ↑, createdAt ↓ | Payments by property |
+| `payments` | tenantUid ↑, createdAt ↓ | Payments by tenant UID |
+| `invoices` | tenantUid ↑, status ↑, dueDate ↑ | Due invoices for tenant |
+| `invoices` | tenantUid ↑, dueDate ↓ | Invoice history |
+| `messages` | conversationId ↑, createdAt ↑ | Chat messages |
+| `conversations` | participantIds (array), lastMessageAt ↓ | User's conversations |
+| `applications` | primaryApplicantId ↑, propertyId ↑, createdAt ↓ | Applicant's applications |
+
+See `firestore.indexes.json` for the full list.
+
 ## Updating Admin Credentials
 
 To update admin credentials after deployment:
