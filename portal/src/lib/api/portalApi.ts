@@ -57,7 +57,7 @@ export async function assignLease(payload: {
   );
 }
 
-export async function editLease(leaseId: string, updates: Partial<Pick<Lease, 'rentAmountCents' | 'depositAmountCents' | 'startDate' | 'endDate' | 'status' | 'notes' | 'gracePeriodDays' | 'rentDueDay'>>) {
+export async function editLease(leaseId: string, updates: Partial<Pick<Lease, 'rentAmountCents' | 'depositAmountCents' | 'startDate' | 'endDate' | 'status' | 'notes' | 'gracePeriodDays' | 'rentDueDay' | 'occupants'>>) {
   return apiRequest<{ success: boolean; updated: Record<string, unknown> }>(
     `/api/admin/leases/${leaseId}`,
     {
@@ -68,7 +68,7 @@ export async function editLease(leaseId: string, updates: Partial<Pick<Lease, 'r
 }
 
 export async function addStatementEntry(statementId: string, payload: {
-  type: 'fee' | 'credit';
+  type: 'fee' | 'credit' | 'adjustment';
   label: string;
   amountCents: number;
   notes?: string;

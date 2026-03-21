@@ -21,7 +21,7 @@ export async function onRequestPatch(context) {
     if (!lease) return jsonResponse({ error: 'Lease not found' }, 404, env);
 
     // Allowed editable fields
-    const allowed = ['rentAmountCents', 'depositAmountCents', 'startDate', 'endDate', 'status', 'notes', 'gracePeriodDays', 'rentDueDay'];
+    const allowed = ['rentAmountCents', 'depositAmountCents', 'startDate', 'endDate', 'status', 'notes', 'gracePeriodDays', 'rentDueDay', 'occupants'];
     const update = {};
     for (const key of allowed) {
       if (body[key] !== undefined) update[key] = body[key];

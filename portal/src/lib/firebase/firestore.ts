@@ -564,6 +564,9 @@ export const activityLogService = {
   getByActor: (actorUid: string) =>
     getDocuments<ActivityLog>('activityLogs', where('actorUid', '==', actorUid), orderBy('createdAt', 'desc')),
 
+  getByTargetUid: (targetUid: string) =>
+    getDocuments<ActivityLog>('activityLogs', where('targetUid', '==', targetUid), orderBy('createdAt', 'desc')),
+
   getRecent: (count = 20) =>
     getDocuments<ActivityLog>('activityLogs', orderBy('createdAt', 'desc'), limit(count)),
 

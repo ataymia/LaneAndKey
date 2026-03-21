@@ -13,6 +13,7 @@ import {
   PropertiesPage,
   AddPropertyPage,
   TenantsPage,
+  TenantProfilePage,
   ApplicationsPage,
   PaymentsPage,
   InvoicesPage,
@@ -103,6 +104,7 @@ function App() {
             <Route path="properties/:id" element={<AddPropertyPage />} />
             <Route path="properties/:id/edit" element={<AddPropertyPage />} />
             <Route path="tenants" element={<TenantsPage />} />
+            <Route path="tenants/:id" element={<TenantProfilePage />} />
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="invoices" element={<InvoicesPage />} />

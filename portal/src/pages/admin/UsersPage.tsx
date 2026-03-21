@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, query, orderBy, where, limit as fbLimit } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { adminCreateUser } from '../../lib/firebase/auth';
@@ -570,6 +571,11 @@ export default function UsersPage() {
                           <button className="btn-icon" title="View details" onClick={() => toggleExpand(user.uid)}>
                             <Eye size={16} />
                           </button>
+                          {user.role === 'tenant' && (
+                            <Link to={`/admin/tenants/${user.uid}`} className="btn-icon" title="View Tenant Profile">
+                              <Users size={16} />
+                            </Link>
+                          )}
                           {updatingUser === user.uid && <span className="updating-indicator">Saving…</span>}
                         </div>
                       </td>

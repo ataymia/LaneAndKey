@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase/config';
 import { alertService, leaseService } from '../../lib/firebase/firestore';
 import { rentStatementService } from '../../lib/firebase/rentStatements';
@@ -14,6 +15,14 @@ import {
   RefreshCw,
   Send,
   X,
+  ChevronDown,
+  Plus,
+  Minus,
+  Edit,
+  FileText,
+  CreditCard,
+  Wrench,
+  Eye,
 } from 'lucide-react';
 import './Tenants.css';
 
@@ -55,6 +64,10 @@ export function TenantsPage() {
   const [noticeTarget, setNoticeTarget] = useState<TenantRow | null>(null);
   const [noticeForm, setNoticeForm] = useState({ title: '', message: '' });
   const [sendingNotice, setSendingNotice] = useState(false);
+
+  // Actions dropdown
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const fetchTenants = useCallback(async () => {
     try {
@@ -313,12 +326,16 @@ export function TenantsPage() {
             </thead>
             <tbody>
               {filteredTenants.map(tenant => (
-                <tr key={tenant.uid}>
+                <tr key={tenant.uid} className="clickable-row" onClick={() => navigate(`/admin/tenants/${tenant.uid}`)} style={{ cursor: 'pointer' }}>
                   <td>
                     <div className="tenant-info">
                       <div className="avatar">{tenant.displayName.charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="tenant-name">{tenant.displayName}</div>
+                        <div className="tenant-name">
+                          <Link to={`/admin/tenants/${tenant.uid}`} onClick={e => e.stopPropagation()} style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {tenant.displayName}
+                          </Link>
+                        </div>
                         <div className="tenant-contact">
                           <Mail size={12} /> {tenant.email}
                         </div>
@@ -341,22 +358,34 @@ export function TenantsPage() {
                   </td>
                   <td>{tenant.leaseEnd || '—'}</td>
                   <td>{tenant.createdAt.toLocaleDateString()}</td>
-                  <td>
-                    <div className="tenant-actions">
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={() => openAssignModal(tenant)}
-                        title="Assign property"
-                      >
-                        Assign Lease
-                      </button>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="tenant-actions" style={{ position: 'relative' }}>
                       <button
                         className="btn btn-sm btn-outline"
-                        onClick={() => { setNoticeTarget(tenant); setNoticeForm({ title: '', message: '' }); }}
-                        title="Send notice"
+                        onClick={() => setMenuOpen(menuOpen === tenant.uid ? null : tenant.uid)}
+                        title="Actions"
                       >
-                        <Send size={14} />
+                        Actions <ChevronDown size={12} />
                       </button>
+                      {menuOpen === tenant.uid && (
+                        <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 50, minWidth: '220px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', padding: '0.25rem 0', marginTop: '4px' }} onClick={() => setMenuOpen(null)}>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}`)}><Eye size={14} /> View Profile</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => openAssignModal(tenant)}><Home size={14} /> Assign / Change Property</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=lease`)}><Edit size={14} /> Edit Lease Terms</button>
+                          <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '0.25rem 0' }} />
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=statements`)}><Plus size={14} /> Add Fee</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=statements`)}><Minus size={14} /> Add Credit</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=statements`)}><DollarSign size={14} /> Add Adjustment</button>
+                          <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '0.25rem 0' }} />
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => { setNoticeTarget(tenant); setNoticeForm({ title: '', message: '' }); }}><Send size={14} /> Send Notice</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=documents`)}><FileText size={14} /> Upload Lease & Send</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=documents`)}><FileText size={14} /> View Documents</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=payments`)}><CreditCard size={14} /> View Payment History</button>
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=maintenance`)}><Wrench size={14} /> View Maintenance</button>
+                          <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '0.25rem 0' }} />
+                          <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 1rem', border: 'none', background: 'none', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' }} onClick={() => navigate(`/admin/tenants/${tenant.uid}?tab=lease`)}><Users size={14} /> Manage Occupants</button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>

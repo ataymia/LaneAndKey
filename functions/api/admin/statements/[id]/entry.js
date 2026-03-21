@@ -25,15 +25,15 @@ export async function onRequestPost(context) {
     if (!type || !label || !amountCents) {
       return jsonResponse({ error: 'type, label, and amountCents are required' }, 400, env);
     }
-    if (type !== 'fee' && type !== 'credit') {
-      return jsonResponse({ error: 'type must be fee or credit' }, 400, env);
+    if (type !== 'fee' && type !== 'credit' && type !== 'adjustment') {
+      return jsonResponse({ error: 'type must be fee, credit, or adjustment' }, 400, env);
     }
 
     const statement = await getDocument(projectId, 'rentStatements', statementId, idToken);
     if (!statement) return jsonResponse({ error: 'Statement not found' }, 404, env);
 
-    // fees are positive (increase balance), credits are negative (reduce balance)
-    const signedAmount = type === 'fee' ? Math.abs(amountCents) : -Math.abs(amountCents);
+    // fees are positive (increase balance), credits are negative (reduce balance), adjustments keep sign as-is
+    const signedAmount = type === 'credit' ? -Math.abs(amountCents) : type === 'fee' ? Math.abs(amountCents) : amountCents;
 
     const now = new Date().toISOString();
     const entry = {
@@ -79,7 +79,7 @@ export async function onRequestPost(context) {
       await createDocument(projectId, 'activityLogs', {
         actorUid: user.uid,
         targetUid: statement.tenantUid || null,
-        action: type === 'fee' ? 'fee_added' : 'credit_added',
+        action: type === 'fee' ? 'fee_added' : type === 'credit' ? 'credit_added' : 'adjustment_added',
         targetType: 'lease',
         targetId: statement.leaseId || statementId,
         metadata: { label, amountCents: signedAmount, statementId },

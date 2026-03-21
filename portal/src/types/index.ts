@@ -317,9 +317,18 @@ export interface Lease {
     paymentReady: boolean;
   };
   leaseSignedAt?: Date | null;
+  occupants?: LeaseOccupant[];
   createdByUid?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface LeaseOccupant {
+  fullName: string;
+  email?: string;
+  phone?: string;
+  type: 'primary' | 'secondary';
+  notes?: string;
 }
 
 export type LeaseStatus = 'draft' | 'pending' | 'active' | 'ended' | 'expired' | 'terminated';
@@ -582,7 +591,13 @@ export type ActivityAction =
   | 'property_updated'
   | 'maintenance_created'
   | 'maintenance_updated'
-  | 'user_role_changed';
+  | 'user_role_changed'
+  | 'adjustment_added'
+  | 'occupant_added'
+  | 'occupant_removed'
+  | 'contact_updated'
+  | 'lease_doc_uploaded'
+  | 'lease_renewed';
 
 export interface ActivityLog {
   id: string;

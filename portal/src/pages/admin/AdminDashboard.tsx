@@ -48,8 +48,8 @@ export function AdminDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Fetch all data in parallel
-      const [properties, applications, allTickets, leases, allStatements, activityLogs] = await Promise.all([
+      // Fetch all data in parallel — use allSettled so one failure doesn't block everything
+      const results = await Promise.allSettled([
         propertyService.getAll(),
         applicationService.getByStatus('new'),
         maintenanceService.getAll(),
@@ -57,6 +57,13 @@ export function AdminDashboard() {
         rentStatementService.getAll(),
         activityLogService.getRecent(10),
       ]);
+
+      const properties = results[0].status === 'fulfilled' ? results[0].value : [];
+      const applications = results[1].status === 'fulfilled' ? results[1].value : [];
+      const allTickets = results[2].status === 'fulfilled' ? results[2].value : [];
+      const leases = results[3].status === 'fulfilled' ? results[3].value : [];
+      const allStatements = results[4].status === 'fulfilled' ? results[4].value : [];
+      const activityLogs = results[5].status === 'fulfilled' ? results[5].value : [];
 
       // Calculate stats
       const vacantCount = properties.filter(p => p.occupancyStatus === 'vacant').length;

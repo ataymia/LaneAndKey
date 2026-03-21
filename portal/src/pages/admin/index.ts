@@ -2,6 +2,7 @@ export { AdminDashboard } from './AdminDashboard';
 export { PropertiesPage } from './PropertiesPage';
 export { AddPropertyPage } from './AddPropertyPage';
 export { TenantsPage } from './TenantsPage';
+export { TenantProfilePage } from './TenantProfilePage';
 export { ApplicationsPage } from './ApplicationsPage';
 export { PaymentsPage } from './PaymentsPage';
 export { InvoicesPage } from './InvoicesPage';
