@@ -14,13 +14,24 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
+  Users,
+  Wrench,
+  FileText,
 } from 'lucide-react';
-import { propertyService } from '../../lib/firebase';
-import type { Property } from '../../types';
+import { propertyService, leaseService, maintenanceService, userService } from '../../lib/firebase';
+import type { Property, Lease, UserProfile } from '../../types';
 import './Properties.css';
 
+interface PropertyRow extends Property {
+  tenantName?: string;
+  tenantUid?: string;
+  leaseId?: string;
+  leaseStatus?: string;
+  openTicketCount: number;
+}
+
 export function PropertiesPage() {
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -32,8 +43,52 @@ export function PropertiesPage() {
 
   const loadProperties = async () => {
     try {
-      const data = await propertyService.getAll();
-      setProperties(data);
+      const [rawProps, activeLeases, allTickets] = await Promise.all([
+        propertyService.getAll(),
+        leaseService.getActive(),
+        maintenanceService.getAll(),
+      ]);
+
+      // Map from propertyId → active lease
+      const leaseByProperty = new Map<string, Lease>();
+      for (const l of activeLeases) {
+        leaseByProperty.set(l.propertyId, l);
+      }
+
+      // Map from propertyId → open ticket count
+      const ticketsByProperty = new Map<string, number>();
+      for (const t of allTickets) {
+        if (t.status === 'new' || t.status === 'in_progress' || t.status === 'waiting') {
+          ticketsByProperty.set(t.propertyId, (ticketsByProperty.get(t.propertyId) || 0) + 1);
+        }
+      }
+
+      // Fetch tenant names for properties with active leases
+      const tenantUids = [...new Set(activeLeases.filter(l => l.tenantUid).map(l => l.tenantUid!))];
+      const tenantProfiles = new Map<string, UserProfile>();
+      await Promise.all(
+        tenantUids.map(async uid => {
+          try {
+            const profile = await userService.get(uid);
+            if (profile) tenantProfiles.set(uid, profile);
+          } catch { /* ignore */ }
+        })
+      );
+
+      const enriched: PropertyRow[] = rawProps.map(p => {
+        const lease = leaseByProperty.get(p.id);
+        const tenant = lease?.tenantUid ? tenantProfiles.get(lease.tenantUid) : null;
+        return {
+          ...p,
+          tenantName: tenant?.displayName || undefined,
+          tenantUid: lease?.tenantUid || undefined,
+          leaseId: lease?.id || undefined,
+          leaseStatus: lease?.status || undefined,
+          openTicketCount: ticketsByProperty.get(p.id) || 0,
+        };
+      });
+
+      setProperties(enriched);
     } catch (error) {
       console.error('Error loading properties:', error);
     } finally {
@@ -236,6 +291,28 @@ export function PropertiesPage() {
                     {property.sqft.toLocaleString()} sqft
                   </span>
                 </div>
+                {(property.tenantName || property.openTicketCount > 0) && (
+                  <div className="property-operational" style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary, #6b7280)' }}>
+                    {property.tenantName && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Users size={12} />
+                        {property.tenantName}
+                      </span>
+                    )}
+                    {property.openTicketCount > 0 && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-warning, #f59e0b)' }}>
+                        <Wrench size={12} />
+                        {property.openTicketCount} open
+                      </span>
+                    )}
+                    {property.leaseId && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <FileText size={12} />
+                        Leased
+                      </span>
+                    )}
+                  </div>
+                )}
               </Link>
             </div>
           ))}

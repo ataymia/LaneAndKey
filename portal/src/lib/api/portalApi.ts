@@ -57,6 +57,31 @@ export async function assignLease(payload: {
   );
 }
 
+export async function editLease(leaseId: string, updates: Partial<Pick<Lease, 'rentAmountCents' | 'depositAmountCents' | 'startDate' | 'endDate' | 'status' | 'notes' | 'gracePeriodDays' | 'rentDueDay'>>) {
+  return apiRequest<{ success: boolean; updated: Record<string, unknown> }>(
+    `/api/admin/leases/${leaseId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }
+  );
+}
+
+export async function addStatementEntry(statementId: string, payload: {
+  type: 'fee' | 'credit';
+  label: string;
+  amountCents: number;
+  notes?: string;
+}) {
+  return apiRequest<{ success: boolean; newBalance: number }>(
+    `/api/admin/statements/${statementId}/entry`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
 export async function getOnboardingStatus() {
   return apiRequest<{ lease: Lease | null; onboardingRequired: boolean; message?: string }>('/api/tenant/onboarding');
 }

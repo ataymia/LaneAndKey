@@ -34,6 +34,7 @@ import type {
   DocumentTemplate,
   AdminSettings,
   UserProfile,
+  ActivityLog,
 } from '../../types';
 
 // Helper to convert Firestore timestamps to Date objects
@@ -546,6 +547,33 @@ export const userService = {
   
   update: (uid: string, data: Partial<UserProfile>) =>
     updateDocument<UserProfile>('users', uid, data),
+};
+
+// ==================== ACTIVITY LOGS ====================
+export const activityLogService = {
+  getAll: () =>
+    getDocuments<ActivityLog>('activityLogs', orderBy('createdAt', 'desc')),
+
+  getByTarget: (targetType: string, targetId: string) =>
+    getDocuments<ActivityLog>('activityLogs',
+      where('targetType', '==', targetType),
+      where('targetId', '==', targetId),
+      orderBy('createdAt', 'desc')
+    ),
+
+  getByActor: (actorUid: string) =>
+    getDocuments<ActivityLog>('activityLogs', where('actorUid', '==', actorUid), orderBy('createdAt', 'desc')),
+
+  getRecent: (count = 20) =>
+    getDocuments<ActivityLog>('activityLogs', orderBy('createdAt', 'desc'), limit(count)),
+
+  create: async (data: Omit<ActivityLog, 'id' | 'createdAt'>) => {
+    const docRef = await addDoc(collection(db, 'activityLogs'), {
+      ...data,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  },
 };
 
 // ==================== CONTACT SUBMISSIONS ====================

@@ -11,12 +11,12 @@ import {
   Receipt,
   AlertCircle,
   ArrowRight,
-  TrendingUp,
   Home,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { propertyService, applicationService, maintenanceService, leaseService } from '../../lib/firebase';
-import type { Application, MaintenanceTicket } from '../../types';
+import { propertyService, applicationService, maintenanceService, leaseService, activityLogService } from '../../lib/firebase';
+import { rentStatementService } from '../../lib/firebase/rentStatements';
+import type { Application, MaintenanceTicket, ActivityLog } from '../../types';
 import './AdminDashboard.css';
 
 interface DashboardStats {
@@ -39,6 +39,7 @@ export function AdminDashboard() {
   });
   const [recentApplications, setRecentApplications] = useState<Application[]>([]);
   const [recentTickets, setRecentTickets] = useState<MaintenanceTicket[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,11 +49,13 @@ export function AdminDashboard() {
   const loadDashboardData = async () => {
     try {
       // Fetch all data in parallel
-      const [properties, applications, allTickets, leases] = await Promise.all([
+      const [properties, applications, allTickets, leases, allStatements, activityLogs] = await Promise.all([
         propertyService.getAll(),
         applicationService.getByStatus('new'),
         maintenanceService.getAll(),
         leaseService.getActive(),
+        rentStatementService.getAll(),
+        activityLogService.getRecent(10),
       ]);
 
       // Calculate stats
@@ -75,17 +78,24 @@ export function AdminDashboard() {
       // Get new tickets for the recent activity list
       const newTickets = allTickets.filter(t => t.status === 'new');
 
+      // Compute overdue payments from open rent statements past due date
+      const todayStr = today.toISOString().slice(0, 10);
+      const overdueCount = allStatements.filter(s =>
+        s.status === 'open' && s.balanceCents > 0 && s.dueDate < todayStr
+      ).length;
+
       setStats({
         totalProperties: properties.length,
         vacantProperties: vacantCount,
         upcomingRenewals: renewals,
-        overdueRent: 0, // Would need payment data
+        overdueRent: overdueCount,
         openTickets: openTicketCount,
         newApplications: applications.length,
       });
 
       setRecentApplications(applications.slice(0, 5));
       setRecentTickets(newTickets.slice(0, 5));
+      setRecentActivity(activityLogs);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -297,35 +307,38 @@ export function AdminDashboard() {
         </section>
       </div>
 
-      {/* Performance Summary */}
-      <section className="dashboard-card performance-card">
-        <div className="card-header">
-          <h3>
-            <TrendingUp size={18} />
-            This Month's Summary
-          </h3>
-        </div>
-        <div className="card-body">
-          <div className="performance-grid">
-            <div className="performance-item">
-              <span className="performance-value success">$0</span>
-              <span className="performance-label">Revenue Collected</span>
-            </div>
-            <div className="performance-item">
-              <span className="performance-value warning">$0</span>
-              <span className="performance-label">Outstanding Balance</span>
-            </div>
-            <div className="performance-item">
-              <span className="performance-value primary">{stats.totalProperties}</span>
-              <span className="performance-label">Active Leases</span>
-            </div>
-            <div className="performance-item">
-              <span className="performance-value info">0%</span>
-              <span className="performance-label">Occupancy Rate</span>
-            </div>
+      {/* Activity Log */}
+      {recentActivity.length > 0 && (
+        <section className="dashboard-card">
+          <div className="card-header">
+            <h3>
+              <Calendar size={18} />
+              Recent Activity
+            </h3>
           </div>
-        </div>
-      </section>
+          <div className="card-body">
+            <ul className="activity-list">
+              {recentActivity.map((log) => (
+                <li key={log.id} className="activity-item">
+                  <div className="activity-icon">
+                    <FileText size={16} />
+                  </div>
+                  <div className="activity-content">
+                    <p className="activity-title">{formatAction(log.action)}</p>
+                    <p className="activity-meta">
+                      {log.metadata && typeof log.metadata === 'object' && 'tenantName' in log.metadata
+                        ? String(log.metadata.tenantName)
+                        : log.targetId.slice(0, 8)}
+                      <span className="separator">•</span>
+                      {new Date(log.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -348,4 +361,26 @@ function getPriorityColor(priority: string): string {
     case 'low': return 'gray';
     default: return 'gray';
   }
+}
+
+function formatAction(action: string): string {
+  const labels: Record<string, string> = {
+    lease_assigned: 'Lease Assigned',
+    lease_ended: 'Lease Ended',
+    lease_edited: 'Lease Edited',
+    fee_added: 'Fee Added',
+    credit_added: 'Credit Applied',
+    payment_recorded: 'Payment Recorded',
+    document_sent: 'Document Sent',
+    document_signed: 'Document Signed',
+    notice_sent: 'Notice Sent',
+    application_approved: 'Application Approved',
+    application_declined: 'Application Declined',
+    property_created: 'Property Created',
+    property_updated: 'Property Updated',
+    maintenance_created: 'Maintenance Ticket Created',
+    maintenance_updated: 'Maintenance Ticket Updated',
+    user_role_changed: 'User Role Changed',
+  };
+  return labels[action] || action.replace(/_/g, ' ');
 }

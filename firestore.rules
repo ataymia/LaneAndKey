@@ -190,6 +190,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── Activity Logs ───
+    match /activityLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null && isAdmin();
+      allow update, delete: if false;
+    }
+
     // ─── Contact Submissions (public site form → admin messages) ───
     match /contactSubmissions/{subId} {
       allow create: if true;                 // Anyone can submit the contact form

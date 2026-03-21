@@ -1,6 +1,6 @@
 import { requireAdmin, jsonResponse, handleApiError } from '../../lib/authz.js';
-import { getDocument, createDocument, updateDocument, commitWrites, queryDocuments } from '../../lib/firestore-rest.js';
-import { defaultLeasePayload } from '../../lib/workflow.js';
+import { getDocument, createDocument, updateDocument, commitWrites, queryDocuments, setDocument } from '../../lib/firestore-rest.js';
+import { defaultLeasePayload, getOrCreateMonthlyStatement } from '../../lib/workflow.js';
 
 function toCents(value) {
   const num = Number(value);
@@ -10,6 +10,11 @@ function toCents(value) {
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export async function onRequestPost(context) {
@@ -34,7 +39,6 @@ export async function onRequestPost(context) {
     if (!property) return jsonResponse({ error: 'Property not found' }, 404, env);
 
     // Use single-field filter only — avoids needing composite index.
-    // Result sets are small (few leases per tenant), so client-side filter is fine.
     const tenantLeases = await queryDocuments(
       projectId,
       'leases',
@@ -88,6 +92,7 @@ export async function onRequestPost(context) {
       idToken
     );
 
+    const now = new Date().toISOString();
     const writes = [
       {
         op: 'update',
@@ -95,7 +100,7 @@ export async function onRequestPost(context) {
         data: {
           currentLeaseId: lease.id,
           currentPropertyId: propertyId,
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         },
       },
       {
@@ -104,7 +109,9 @@ export async function onRequestPost(context) {
         data: {
           occupancyStatus: 'occupied',
           status: 'occupied',
-          updatedAt: new Date().toISOString(),
+          currentLeaseId: lease.id,
+          currentTenantUid: tenantUid,
+          updatedAt: now,
         },
       },
     ];
@@ -116,12 +123,48 @@ export async function onRequestPost(context) {
         data: {
           status: 'ended',
           endDate: today(),
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         },
       });
     }
 
     await commitWrites(projectId, writes, idToken);
+
+    // Initialize rent statement for current month
+    const month = currentMonth();
+    const dueDate = `${month}-01`;
+    try {
+      await getOrCreateMonthlyStatement({
+        projectId,
+        lease: { ...lease, id: lease.id, rentAmountCents: finalRent },
+        month,
+        dueDate,
+        createdByUid: user.uid,
+        idToken,
+      });
+    } catch (stmtErr) {
+      console.error('Statement init failed (non-blocking):', stmtErr);
+    }
+
+    // Create activity log entry
+    try {
+      await createDocument(projectId, 'activityLogs', {
+        actorUid: user.uid,
+        targetUid: tenantUid,
+        action: 'lease_assigned',
+        targetType: 'lease',
+        targetId: lease.id,
+        metadata: {
+          propertyId,
+          propertyAddress: property.address || '',
+          rentAmountCents: finalRent,
+          tenantName: tenantUser.displayName || tenantUser.email || '',
+        },
+        createdAt: now,
+      }, idToken);
+    } catch (logErr) {
+      console.error('Activity log failed (non-blocking):', logErr);
+    }
 
     return jsonResponse({
       success: true,

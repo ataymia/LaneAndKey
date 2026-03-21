@@ -56,6 +56,7 @@ export async function getOrCreateMonthlyStatement({
   month,
   dueDate,
   createdByUid,
+  idToken,
 }) {
   // Two equality filters on leaseId+month are served by the existing
   // composite index (leaseId ASC, month DESC).  No orderBy needed since
@@ -67,7 +68,8 @@ export async function getOrCreateMonthlyStatement({
       { field: 'leaseId', op: 'EQUAL', value: lease.id },
       { field: 'month', op: 'EQUAL', value: month },
     ],
-    null
+    null,
+    idToken
   );
 
   if (existing[0]) {
@@ -88,7 +90,7 @@ export async function getOrCreateMonthlyStatement({
     lateFeesThroughDate: null,
     createdAt: now,
     updatedAt: now,
-  });
+  }, idToken);
 
   await setDocument(projectId, `rentStatements/${statement.id}/ledger`, `charge_${month}`, {
     type: 'charge',
@@ -97,7 +99,7 @@ export async function getOrCreateMonthlyStatement({
     effectiveDate: dueDate,
     createdByUid: createdByUid || 'system',
     createdAt: now,
-  });
+  }, idToken);
 
   return { ...statement, balanceCents: lease.rentAmountCents };
 }

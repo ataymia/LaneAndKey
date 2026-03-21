@@ -14,75 +14,10 @@ import {
   Filter,
 } from 'lucide-react';
 import { useAuth } from '../../contexts';
-import { rentStatementService, ledgerService, userService, isFirebaseConfigured } from '../../lib/firebase';
+import { rentStatementService, ledgerService } from '../../lib/firebase/rentStatements';
+import { userService } from '../../lib/firebase/firestore';
 import type { RentStatement, LedgerEntry } from '../../types';
 import './Statements.css';
-
-/* ─────────────── Demo Data ─────────────── */
-const DEMO_STATEMENTS: (RentStatement & { tenantName?: string })[] = [
-  {
-    id: 'demo-stmt-1',
-    leaseId: 'demo-lease-001',
-    tenantUid: 'demo-tenant-001',
-    month: '2026-01',
-    status: 'open',
-    dueDate: '2026-01-01',
-    rentChargeCents: 150000,
-    balanceCents: 152500,
-    lateFeesEnabled: true,
-    lateFeesThroughDate: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    paidAt: null,
-    tenantName: 'Demo Tenant',
-  },
-  {
-    id: 'demo-stmt-2',
-    leaseId: 'demo-lease-002',
-    tenantUid: 'demo-tenant-002',
-    month: '2026-01',
-    status: 'open',
-    dueDate: '2026-01-01',
-    rentChargeCents: 180000,
-    balanceCents: 180000,
-    lateFeesEnabled: true,
-    lateFeesThroughDate: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    paidAt: null,
-    tenantName: 'John Smith',
-  },
-  {
-    id: 'demo-stmt-3',
-    leaseId: 'demo-lease-001',
-    tenantUid: 'demo-tenant-001',
-    month: '2025-12',
-    status: 'paid',
-    dueDate: '2025-12-01',
-    rentChargeCents: 150000,
-    balanceCents: 0,
-    lateFeesEnabled: true,
-    lateFeesThroughDate: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    paidAt: new Date('2025-12-02'),
-    tenantName: 'Demo Tenant',
-  },
-];
-
-const DEMO_LEDGER: Record<string, LedgerEntry[]> = {
-  'demo-stmt-1': [
-    { id: 'l1', type: 'charge', label: 'Rent – Jan 2026', amountCents: 150000, effectiveDate: '2026-01-01', createdAt: new Date() } as LedgerEntry,
-    { id: 'l2', type: 'fee', label: 'Initial Late Fee', amountCents: 2500, effectiveDate: '2026-01-05', createdAt: new Date() } as LedgerEntry,
-  ],
-  'demo-stmt-2': [
-    { id: 'l3', type: 'charge', label: 'Rent – Jan 2026', amountCents: 180000, effectiveDate: '2026-01-01', createdAt: new Date() } as LedgerEntry,
-  ],
-  'demo-stmt-3': [
-    { id: 'l4', type: 'charge', label: 'Rent – Dec 2025', amountCents: 150000, effectiveDate: '2025-12-01', createdAt: new Date() } as LedgerEntry,
-    { id: 'l5', type: 'payment', label: 'Stripe Payment', amountCents: -150000, effectiveDate: '2025-12-02', createdAt: new Date() } as LedgerEntry,
-  ],
-};
 
 /* ─────────────── Helpers ─────────────── */
 function fmtCurrency(cents: number) {
@@ -126,10 +61,6 @@ export function StatementsPage() {
   async function loadStatements() {
     setLoading(true);
     try {
-      if (!isFirebaseConfigured) {
-        setStatements(DEMO_STATEMENTS);
-        return;
-      }
       const data = await rentStatementService.getAll();
       // Enrich with tenant names
       const enriched = await Promise.all(
@@ -145,7 +76,7 @@ export function StatementsPage() {
       setStatements(enriched);
     } catch (err) {
       console.error('Error loading statements:', err);
-      setStatements(DEMO_STATEMENTS);
+      setStatements([]);
     } finally {
       setLoading(false);
     }
@@ -160,12 +91,8 @@ export function StatementsPage() {
     if (!ledgerMap[id]) {
       setLedgerLoading(id);
       try {
-        if (!isFirebaseConfigured) {
-          setLedgerMap((m) => ({ ...m, [id]: DEMO_LEDGER[id] || [] }));
-        } else {
-          const entries = await ledgerService.getByStatement(id);
-          setLedgerMap((m) => ({ ...m, [id]: entries }));
-        }
+        const entries = await ledgerService.getByStatement(id);
+        setLedgerMap((m) => ({ ...m, [id]: entries }));
       } catch (err) {
         console.error('Error loading ledger:', err);
       } finally {
@@ -180,21 +107,19 @@ export function StatementsPage() {
     if (isNaN(cents) || cents <= 0) return;
     setFeeSubmitting(true);
     try {
-      if (isFirebaseConfigured) {
-        // POST to API
-        const token = user ? await user.getIdToken() : '';
-        const res = await fetch('/api/statements', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            statementId: feeModal.statementId,
-            action: 'add_fee',
-            label: feeLabel.trim(),
-            amountCents: cents,
-          }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-      }
+      // POST to API
+      const token = user ? await user.getIdToken() : '';
+      const res = await fetch('/api/statements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          statementId: feeModal.statementId,
+          action: 'add_fee',
+          label: feeLabel.trim(),
+          amountCents: cents,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       // Refresh
       setFeeModal(null);
       setFeeLabel('');

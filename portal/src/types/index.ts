@@ -94,6 +94,10 @@ export interface Property {
   occupancyStatus: 'vacant' | 'occupied' | 'applications_in_progress';
   acceptingApplications: boolean;
   
+  // Current tenant/lease linkage (set by assign endpoint)
+  currentLeaseId?: string;
+  currentTenantUid?: string;
+  
   // Coordinates for map
   lat?: number;
   lng?: number;
@@ -558,4 +562,35 @@ export interface DocumentEvent {
   actorUid: string;
   timestamp: Date;
   metadata?: Record<string, string>;
+}
+
+// ==================== ACTIVITY LOGS ====================
+
+export type ActivityAction =
+  | 'lease_assigned'
+  | 'lease_ended'
+  | 'lease_edited'
+  | 'fee_added'
+  | 'credit_added'
+  | 'payment_recorded'
+  | 'document_sent'
+  | 'document_signed'
+  | 'notice_sent'
+  | 'application_approved'
+  | 'application_declined'
+  | 'property_created'
+  | 'property_updated'
+  | 'maintenance_created'
+  | 'maintenance_updated'
+  | 'user_role_changed';
+
+export interface ActivityLog {
+  id: string;
+  actorUid: string;
+  targetUid?: string;
+  action: ActivityAction;
+  targetType: 'lease' | 'property' | 'user' | 'payment' | 'document' | 'maintenance' | 'application';
+  targetId: string;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
 }

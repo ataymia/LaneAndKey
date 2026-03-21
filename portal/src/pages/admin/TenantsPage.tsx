@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
-import { alertService } from '../../lib/firebase/firestore';
+import { alertService, leaseService } from '../../lib/firebase/firestore';
+import { rentStatementService } from '../../lib/firebase/rentStatements';
 import { assignLease } from '../../lib/api/portalApi';
-import type { UserProfile, Tenant, Property } from '../../types';
+import type { UserProfile, Property, Lease } from '../../types';
 import {
   Users,
   Search,
@@ -22,9 +23,11 @@ interface TenantRow {
   email: string;
   phone: string;
   propertyAddress: string;
+  propertyId: string;
   unit: string;
   leaseEnd: string;
-  balance: number;
+  leaseId: string;
+  balanceCents: number;
   createdAt: Date;
 }
 
@@ -53,9 +56,6 @@ export function TenantsPage() {
   const [noticeForm, setNoticeForm] = useState({ title: '', message: '' });
   const [sendingNotice, setSendingNotice] = useState(false);
 
-  // Expanded row
-  const [, ] = useState<string | null>(null);
-
   const fetchTenants = useCallback(async () => {
     try {
       setLoading(true);
@@ -73,35 +73,52 @@ export function TenantsPage() {
           updatedAt: data.updatedAt?.toDate?.() || new Date(),
         } as UserProfile;
       });
-      // Sort client-side to avoid needing composite index
       tenantUsers.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-      // Fetch tenant docs
-      const tenantsSnap = await getDocs(collection(db, 'tenants'));
-      const tenantDocs = tenantsSnap.docs.map(d => ({ ...d.data(), id: d.id } as Tenant));
 
       // Fetch properties
       const propsSnap = await getDocs(collection(db, 'properties'));
       const propDocs = propsSnap.docs.map(d => ({ ...d.data(), id: d.id } as Property));
       setProperties(propDocs);
 
+      // Fetch active leases + rent statements in parallel
+      const [activeLeases, allStatements] = await Promise.all([
+        leaseService.getActive(),
+        rentStatementService.getAll(),
+      ]);
+
       // Build lookup maps
       const propMap = new Map(propDocs.map(p => [p.id, p]));
-      const tenantDocMap = new Map(tenantDocs.map(t => [t.userId, t]));
+      // Map from tenantUid → their active lease
+      const leaseByTenant = new Map<string, Lease>();
+      for (const l of activeLeases) {
+        if (l.tenantUid) leaseByTenant.set(l.tenantUid, l);
+      }
+      // Map from tenantUid → total open balance cents
+      const balanceByTenant = new Map<string, number>();
+      for (const s of allStatements) {
+        if (s.status === 'open') {
+          balanceByTenant.set(s.tenantUid, (balanceByTenant.get(s.tenantUid) || 0) + s.balanceCents);
+        }
+      }
 
       // Merge
       const rows: TenantRow[] = tenantUsers.map(u => {
-        const tenantDoc = tenantDocMap.get(u.uid);
-        const prop = tenantDoc?.propertyId ? propMap.get(tenantDoc.propertyId) : null;
+        // Resolve property from active lease or from user.currentPropertyId
+        const lease = leaseByTenant.get(u.uid);
+        const propertyId = lease?.propertyId || u.currentPropertyId || '';
+        const prop = propertyId ? propMap.get(propertyId) : null;
+        const endDate = lease?.endDate ? new Date(lease.endDate).toLocaleDateString() : '';
         return {
           uid: u.uid,
           displayName: u.displayName || u.email || '',
           email: u.email,
           phone: u.phone || '',
           propertyAddress: prop?.address || 'Unassigned',
+          propertyId,
           unit: prop?.unit || '',
-          leaseEnd: '', // would come from lease doc
-          balance: tenantDoc?.balance ?? 0,
+          leaseEnd: endDate,
+          leaseId: lease?.id || '',
+          balanceCents: balanceByTenant.get(u.uid) || 0,
           createdAt: u.createdAt,
         };
       });
@@ -220,7 +237,7 @@ export function TenantsPage() {
   });
 
   const formatCurrency = (cents: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(cents) / 100);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
   if (loading) {
     return (
@@ -289,6 +306,7 @@ export function TenantsPage() {
                 <th>Property</th>
                 <th>Phone</th>
                 <th>Balance</th>
+                <th>Lease End</th>
                 <th>Joined</th>
                 <th>Actions</th>
               </tr>
@@ -316,11 +334,12 @@ export function TenantsPage() {
                   </td>
                   <td>{tenant.phone || '—'}</td>
                   <td>
-                    <span className={`balance ${tenant.balance > 0 ? 'due' : ''}`}>
+                    <span className={`balance ${tenant.balanceCents > 0 ? 'due' : ''}`}>
                       <DollarSign size={14} />
-                      {formatCurrency(tenant.balance)}
+                      {formatCurrency(tenant.balanceCents)}
                     </span>
                   </td>
+                  <td>{tenant.leaseEnd || '—'}</td>
                   <td>{tenant.createdAt.toLocaleDateString()}</td>
                   <td>
                     <div className="tenant-actions">
