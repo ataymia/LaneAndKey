@@ -35,6 +35,8 @@ import type {
   AdminSettings,
   UserProfile,
   ActivityLog,
+  LeaseTemplate,
+  GeneratedLease,
 } from '../../types';
 
 // Helper to convert Firestore timestamps to Date objects
@@ -577,6 +579,45 @@ export const activityLogService = {
     });
     return docRef.id;
   },
+};
+
+// ==================== LEASE TEMPLATES ====================
+export const leaseTemplateService = {
+  getAll: () =>
+    getDocuments<LeaseTemplate>('leaseTemplates', orderBy('updatedAt', 'desc')),
+
+  get: (id: string) => getDocument<LeaseTemplate>('leaseTemplates', id),
+
+  getPublished: () =>
+    getDocuments<LeaseTemplate>('leaseTemplates', where('status', '==', 'published'), orderBy('updatedAt', 'desc')),
+
+  create: (data: Omit<LeaseTemplate, 'id' | 'createdAt' | 'updatedAt'>) =>
+    createDocument<LeaseTemplate>('leaseTemplates', data),
+
+  update: (id: string, data: Partial<LeaseTemplate>) =>
+    updateDocument<LeaseTemplate>('leaseTemplates', id, data),
+
+  delete: (id: string) => deleteDocument('leaseTemplates', id),
+};
+
+// ==================== GENERATED LEASES ====================
+export const generatedLeaseService = {
+  get: (id: string) => getDocument<GeneratedLease>('generatedLeases', id),
+
+  getByLease: (leaseId: string) =>
+    getDocuments<GeneratedLease>('generatedLeases', where('leaseId', '==', leaseId), orderBy('createdAt', 'desc')),
+
+  getByTenant: (tenantUid: string) =>
+    getDocuments<GeneratedLease>('generatedLeases', where('tenantUid', '==', tenantUid), orderBy('createdAt', 'desc')),
+
+  getAll: () =>
+    getDocuments<GeneratedLease>('generatedLeases', orderBy('createdAt', 'desc')),
+
+  create: (data: Omit<GeneratedLease, 'id' | 'createdAt' | 'updatedAt'>) =>
+    createDocument<GeneratedLease>('generatedLeases', data),
+
+  update: (id: string, data: Partial<GeneratedLease>) =>
+    updateDocument<GeneratedLease>('generatedLeases', id, data),
 };
 
 // ==================== CONTACT SUBMISSIONS ====================

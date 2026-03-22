@@ -1,0 +1,140 @@
+/* ─── Generate Lease Page ─── */
+
+.generate-lease-page .tab-row {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border-color, #ddd);
+}
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.9rem;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tab-btn.active {
+  color: var(--primary-color, #2563eb);
+  border-bottom-color: var(--primary-color, #2563eb);
+  font-weight: 600;
+}
+.tab-btn:not(.active):hover {
+  color: var(--text-primary, #333);
+}
+
+/* Form */
+.generate-form .form-section {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.generate-form .form-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--text-primary, #333);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted, #888);
+  margin: -0.25rem 0 0.75rem;
+}
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: var(--bg-card, #fff);
+}
+.field-key-hint {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: var(--text-muted, #aaa);
+  margin-left: 4px;
+}
+.required { color: #dc2626; font-size: 0.8rem; }
+
+.variable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Signature fields preview */
+.sig-fields-preview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #eee);
+}
+.sig-fields-preview h4 {
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+.sig-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sig-field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-soft, #f8f9fa);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.sig-type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.sig-type-signature { background: #fef3cd; color: #856404; }
+.sig-type-date { background: #d1ecf1; color: #0c5460; }
+.sig-type-initial { background: #d4edda; color: #155724; }
+.sig-role { font-size: 0.75rem; color: var(--text-muted, #888); }
+
+.generate-actions {
+  margin-top: 1.5rem;
+  text-align: right;
+}
+
+/* History table */
+.generated-list .template-badge {
+  font-family: monospace;
+  font-size: 0.8rem;
+  background: #e8f0fe;
+  color: #1a56db;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.signed-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #0f5132;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .form-row { grid-template-columns: 1fr; }
+  .variable-grid { grid-template-columns: 1fr; }
+}

@@ -18,6 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Stamp,
+  FilePlus,
 } from 'lucide-react';
 import { useState } from 'react';
 import './Sidebar.css';
@@ -41,6 +43,8 @@ const adminNavItems: NavItem[] = [
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/admin/messages' },
   { icon: <Bell size={20} />, label: 'Alerts', path: '/admin/alerts' },
   { icon: <FolderOpen size={20} />, label: 'Documents', path: '/admin/documents' },
+  { icon: <Stamp size={20} />, label: 'Lease Templates', path: '/admin/lease-templates' },
+  { icon: <FilePlus size={20} />, label: 'Generate Lease', path: '/admin/generate-lease' },
   { icon: <UserCog size={20} />, label: 'Users', path: '/admin/users' },
   { icon: <Settings size={20} />, label: 'Settings', path: '/admin/settings' },
 ];

@@ -341,6 +341,84 @@ export interface LeaseAttachment {
   uploadedAt: Date;
 }
 
+// ==================== LEASE TEMPLATES ====================
+
+export type LeaseTemplateStatus = 'draft' | 'published' | 'archived';
+export type LeaseTemplateFormat = 'html' | 'markdown';
+export type TemplateFieldType = 'text' | 'date' | 'money' | 'list' | 'boolean';
+export type SignatureFieldType = 'signature' | 'date' | 'initial';
+export type SignatureFieldRole = 'tenant' | 'landlord';
+export type LeaseSigningStatus = 'not_generated' | 'generated' | 'sent' | 'viewed' | 'signed';
+
+export interface TemplateFieldDef {
+  key: string;
+  label: string;
+  type: TemplateFieldType;
+  required: boolean;
+  default?: string;
+}
+
+export interface SignatureFieldDef {
+  id: string;
+  type: SignatureFieldType;
+  role: SignatureFieldRole;
+  anchor: string;           // e.g. [[SIGNATURE:tenant]]
+  required: boolean;
+  displayLabel: string;     // e.g. "Tenant Signature"
+}
+
+export interface LeaseTemplate {
+  id: string;
+  name: string;
+  version: string;               // semver e.g. "1.0.0"
+  status: LeaseTemplateStatus;
+  templateFormat: LeaseTemplateFormat;
+  templateBody: string;          // HTML/markdown with placeholders + anchors
+  fieldSchema: TemplateFieldDef[];
+  signatureSchema: SignatureFieldDef[];
+  createdByUid: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Signing fields stored on the generated lease
+export interface LeaseSignatureFieldValue {
+  fieldId: string;               // matches signatureSchema[].id
+  type: SignatureFieldType;
+  role: SignatureFieldRole;
+  pageNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required: boolean;
+  displayLabel: string;
+  value?: string;                // date string or typed name
+  signedImagePath?: string;      // Storage path for signature/initial image
+  completedAt?: Date;
+}
+
+// Generated lease document tracking (extends portalDocuments)
+export interface GeneratedLease {
+  id: string;
+  leaseId: string;
+  templateId: string;
+  templateVersion: string;
+  tenantUid: string;
+  propertyId: string;
+  generatedByUid: string;
+  generatedAt: Date;
+  fieldValues: Record<string, string>; // template variable values used
+  signingStatus: LeaseSigningStatus;
+  signatureFields: LeaseSignatureFieldValue[];
+  pdfOriginalPath: string;       // Storage path
+  pdfSignedPath?: string;        // Storage path after signing
+  signedAt?: Date;
+  portalDocumentId?: string;     // link to portalDocuments entry
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Invoice - represents amounts due from tenants
 export interface Invoice {
   id: string;
@@ -597,7 +675,12 @@ export type ActivityAction =
   | 'occupant_removed'
   | 'contact_updated'
   | 'lease_doc_uploaded'
-  | 'lease_renewed';
+  | 'lease_renewed'
+  | 'template_created'
+  | 'template_published'
+  | 'lease_generated'
+  | 'lease_sent_for_signature'
+  | 'lease_signed';
 
 export interface ActivityLog {
   id: string;

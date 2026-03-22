@@ -13,3 +13,5 @@ export { AlertsPage } from './AlertsPage';
 export { DocumentsPage } from './DocumentsPage';
 export { SettingsPage } from './SettingsPage';
 export { default as UsersPage } from './UsersPage';
+export { LeaseTemplatesPage } from './LeaseTemplatesPage';
+export { GenerateLeasePage } from './GenerateLeasePage';

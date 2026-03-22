@@ -24,6 +24,8 @@ import {
   DocumentsPage,
   SettingsPage,
   UsersPage,
+  LeaseTemplatesPage,
+  GenerateLeasePage,
 } from './pages/admin';
 
 // Tenant pages
@@ -114,6 +116,8 @@ function App() {
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="lease-templates" element={<LeaseTemplatesPage />} />
+            <Route path="generate-lease" element={<GenerateLeasePage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           
