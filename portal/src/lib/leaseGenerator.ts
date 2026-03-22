@@ -4,11 +4,10 @@
  * Approach: Structured PDF layout via pdf-lib.
  * 1. Parse HTML template body extracting text blocks and anchor positions
  * 2. Render sections as text using pdf-lib with known coordinates
- * 3. Anchors ([[SIGNATURE:...]], [[DATE:...]], [[INITIAL:...]]) become
+ * 3. Anchors ([[SIGNATURE:...]], [[DATE:...]], [[INITIAL:...]], [[CHECK:...]], [[TEXT:...]]) become
  *    known rectangles in the output → field map
  *
- * NO guessing. Every signature/date/initial field coordinate comes from
- * explicit anchor positions in the template.
+ * NO guessing. Every field coordinate comes from explicit anchor positions.
  */
 
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
@@ -16,6 +15,8 @@ import type {
   LeaseTemplate,
   SignatureFieldDef,
   LeaseSignatureFieldValue,
+  FieldOwnerRole,
+  FieldPhase,
 } from '../types';
 
 /* ─── Constants ─── */
@@ -38,9 +39,13 @@ const DATE_BOX_WIDTH = 140;
 const DATE_BOX_HEIGHT = 24;
 const INITIAL_BOX_WIDTH = 60;
 const INITIAL_BOX_HEIGHT = 24;
+const CHECK_BOX_WIDTH = 20;
+const CHECK_BOX_HEIGHT = 20;
+const TEXT_BOX_WIDTH = 240;
+const TEXT_BOX_HEIGHT = 24;
 
 /* ─── Anchor regex ─── */
-const ANCHOR_REGEX = /\[\[(SIGNATURE|DATE|INITIAL):([^\]]+)\]\]/g;
+const ANCHOR_REGEX = /\[\[(SIGNATURE|DATE|INITIAL|CHECK|TEXT):([^\]]+)\]\]/g;
 const PLACEHOLDER_REGEX = /\{\{([A-Z_]+)\}\}/g;
 
 /* ─── Types ─── */
@@ -316,6 +321,12 @@ export async function generateLeasePdf(
         } else if (def.type === 'date') {
           boxW = DATE_BOX_WIDTH;
           boxH = DATE_BOX_HEIGHT;
+        } else if (def.type === 'check') {
+          boxW = CHECK_BOX_WIDTH;
+          boxH = CHECK_BOX_HEIGHT;
+        } else if (def.type === 'text') {
+          boxW = TEXT_BOX_WIDTH;
+          boxH = TEXT_BOX_HEIGHT;
         } else {
           boxW = INITIAL_BOX_WIDTH;
           boxH = INITIAL_BOX_HEIGHT;
@@ -342,6 +353,8 @@ export async function generateLeasePdf(
           height: boxH,
           required: def.required,
           displayLabel: def.displayLabel,
+          ownerRole: def.ownerRole,
+          phase: def.phase,
         });
 
         cursorY = boxY - LINE_HEIGHT;
@@ -498,19 +511,37 @@ export function buildFieldSchemaFromPlaceholders(
   });
 }
 
+/* ─── Determine ownerRole and phase from anchor detail ─── */
+function inferOwnerAndPhase(type: string, detail: string): { ownerRole: FieldOwnerRole; phase: FieldPhase; required: boolean } {
+  const lowerDetail = detail.toLowerCase();
+  // Inspection anchors: [[CHECK:inspection:...]] or [[TEXT:inspection:...]]
+  if (lowerDetail.startsWith('inspection') || lowerDetail.includes('inspection')) {
+    return { ownerRole: 'tenant', phase: 'move_in_inspection', required: false };
+  }
+  // Signing anchors: signature, date (for signing), initial
+  if (type === 'SIGNATURE' || type === 'INITIAL') {
+    return { ownerRole: 'tenant', phase: 'signing', required: true };
+  }
+  if (type === 'DATE') {
+    return { ownerRole: 'tenant', phase: 'signing', required: true };
+  }
+  return { ownerRole: 'tenant', phase: 'any', required: true };
+}
+
 /* ─── Build signatureSchema from anchor list ─── */
 export function buildSignatureSchemaFromAnchors(
   anchors: Array<{ type: string; detail: string; full: string }>,
-): Array<{ id: string; type: 'signature' | 'date' | 'initial'; role: 'tenant' | 'landlord'; anchor: string; required: boolean; displayLabel: string }> {
+): SignatureFieldDef[] {
   return anchors.map((a, i) => {
-    const type = a.type.toLowerCase() as 'signature' | 'date' | 'initial';
+    const type = a.type.toLowerCase() as 'signature' | 'date' | 'initial' | 'check' | 'text';
     const parts = a.detail.split(':');
     const role = (parts[0] === 'landlord' ? 'landlord' : 'tenant') as 'tenant' | 'landlord';
-    const section = parts[1] || '';
+    const section = parts.slice(1).join(':') || parts[0];
     const id = `${type}_${a.detail.replace(/[^a-zA-Z0-9]/g, '_')}_${i}`;
+    const { ownerRole, phase, required } = inferOwnerAndPhase(a.type, a.detail);
     const displayLabel = section
-      ? `${role === 'landlord' ? 'Landlord' : 'Tenant'} ${type} (${section.replace(/_/g, ' ')})`
+      ? `${type === 'check' ? '☐' : type === 'text' ? '✎' : role === 'landlord' ? 'Landlord' : 'Tenant'} ${type === 'check' || type === 'text' ? section.replace(/_/g, ' ') : type + ' (' + section.replace(/_/g, ' ') + ')'}`
       : `${role === 'landlord' ? 'Landlord' : 'Tenant'} ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-    return { id, type, role, anchor: a.full, required: true, displayLabel };
+    return { id, type, role, anchor: a.full, required, displayLabel, ownerRole, phase };
   });
 }

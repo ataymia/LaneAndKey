@@ -75,13 +75,17 @@ export function GenerateLeasePage() {
     setLoading(true);
     try {
       const [tplRes, tenantRes, leaseRes, propRes, genRes] = await Promise.allSettled([
-        leaseTemplateService.getPublished(),
+        leaseTemplateService.getPublished().catch(() =>
+          // Fallback: if composite index isn't ready, fetch all and filter client-side
+          leaseTemplateService.getAll().then(all => all.filter(t => t.status === 'published'))
+        ),
         userService.getAll(),
         leaseService.getActive(),
         propertyService.getAll(),
         generatedLeaseService.getAll(),
       ]);
       if (tplRes.status === 'fulfilled') setTemplates(tplRes.value);
+      else console.error('Failed to load templates:', (tplRes as PromiseRejectedResult).reason);
       if (tenantRes.status === 'fulfilled') setTenants(tenantRes.value.filter((u: UserProfile) => u.role === 'tenant'));
       if (leaseRes.status === 'fulfilled') setLeases(leaseRes.value);
       if (propRes.status === 'fulfilled') setProperties(propRes.value);
@@ -108,10 +112,12 @@ export function GenerateLeasePage() {
   );
 
   // Auto-fill field values when template/tenant/lease change
+  // Only include admin-owned fields (ownerRole is 'admin' or undefined for backward compat)
   useEffect(() => {
     if (!selectedTemplate) return;
     const vals: Record<string, string> = {};
-    for (const field of selectedTemplate.fieldSchema) {
+    const adminFields = selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin');
+    for (const field of adminFields) {
       // Try to auto-fill from tenant/lease/property data
       const k = field.key;
       if (k === 'TENANT_FULL_NAME' && selectedTenant) vals[k] = selectedTenant.displayName;
@@ -136,8 +142,9 @@ export function GenerateLeasePage() {
       return;
     }
 
-    // Check required fields
-    for (const f of selectedTemplate.fieldSchema) {
+    // Check required fields (admin-owned only)
+    const adminFields = selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin');
+    for (const f of adminFields) {
       if (f.required && !fieldValues[f.key]?.trim()) {
         setGenError(`Required field "${f.label}" is empty.`);
         return;
@@ -323,11 +330,12 @@ export function GenerateLeasePage() {
 
           {/* Step 3: Fill variables */}
           {selectedTemplate && selectedTenantUid && selectedLeaseId && (
+            <>
             <div className="form-section">
               <h3>3. Fill Lease Variables</h3>
               <p className="form-hint">Auto-filled from lease data. Review and adjust as needed.</p>
               <div className="variable-grid">
-                {selectedTemplate.fieldSchema.map(f => (
+                {selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin').map(f => (
                   <div key={f.key} className="form-group">
                     <label className="form-label">
                       {f.label} {f.required && <span className="required">*</span>}
@@ -358,27 +366,50 @@ export function GenerateLeasePage() {
                 ))}
               </div>
 
-              {/* Signature fields preview */}
-              <div className="sig-fields-preview">
-                <h4>Signature / Date / Initial Fields ({selectedTemplate.signatureSchema.length})</h4>
-                <div className="sig-field-list">
-                  {selectedTemplate.signatureSchema.map(s => (
-                    <div key={s.id} className="sig-field-item">
-                      <span className={`sig-type-badge sig-type-${s.type}`}>{s.type}</span>
-                      <span>{s.displayLabel}</span>
-                      <span className="sig-role">{s.role}</span>
-                      {s.required && <span className="required">required</span>}
+              {/* Signature fields preview (signing phase only) */}
+              {(() => {
+                const signingFields = selectedTemplate.signatureSchema.filter(s => s.phase !== 'move_in_inspection');
+                const inspectionFields = selectedTemplate.signatureSchema.filter(s => s.phase === 'move_in_inspection');
+                return (
+                  <>
+                    <div className="sig-fields-preview">
+                      <h4>Signature / Date / Initial Fields ({signingFields.length})</h4>
+                      <div className="sig-field-list">
+                        {signingFields.map(s => (
+                          <div key={s.id} className="sig-field-item">
+                            <span className={`sig-type-badge sig-type-${s.type}`}>{s.type}</span>
+                            <span>{s.displayLabel}</span>
+                            <span className="sig-role">{s.role}</span>
+                            {s.required && <span className="required">required</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    {inspectionFields.length > 0 && (
+                      <div className="sig-fields-preview" style={{ opacity: 0.7 }}>
+                        <h4>Move-in Inspection Fields ({inspectionFields.length}) — tenant completes later</h4>
+                        <div className="sig-field-list">
+                          {inspectionFields.map(s => (
+                            <div key={s.id} className="sig-field-item">
+                              <span className={`sig-type-badge sig-type-${s.type}`}>{s.type}</span>
+                              <span>{s.displayLabel}</span>
+                              <span className="sig-role" style={{ color: 'var(--text-muted)'}}>optional</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
 
               <div className="generate-actions">
                 <button className="btn btn-primary btn-lg" onClick={handleGenerate} disabled={generating}>
                   {generating ? <><Loader2 size={16} className="spinner" /> Generating…</> : <><FileText size={16} /> Generate Lease PDF</>}
                 </button>
               </div>
-            </div>
+            </>
           )}
         </div>
       )}

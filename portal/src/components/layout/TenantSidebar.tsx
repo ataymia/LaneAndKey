@@ -11,6 +11,7 @@ import {
   FolderOpen,
   LogOut,
   History,
+  ClipboardCheck,
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -27,6 +28,7 @@ const tenantNavItems: NavItem[] = [
   { icon: <CreditCard size={20} />, label: 'Payments', path: '/tenant/payments' },
   { icon: <History size={20} />, label: 'Rent History', path: '/tenant/rent-history' },
   { icon: <Wrench size={20} />, label: 'Maintenance', path: '/tenant/maintenance' },
+  { icon: <ClipboardCheck size={20} />, label: 'Inspection', path: '/tenant/inspection' },
   { icon: <FolderOpen size={20} />, label: 'Documents', path: '/tenant/documents' },
   { icon: <MessageSquare size={20} />, label: 'Messages', path: '/tenant/messages' },
   { icon: <Bell size={20} />, label: 'Alerts', path: '/tenant/alerts' },

@@ -219,6 +219,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ─── Move-in Inspections (tenant-owned, admin readable) ───
+    match /inspections/{inspId} {
+      allow read: if request.auth != null
+        && (resource.data.tenantUid == request.auth.uid || isAdmin());
+      allow create: if request.auth != null
+        && request.resource.data.tenantUid == request.auth.uid;
+      allow update: if request.auth != null
+        && (
+          resource.data.tenantUid == request.auth.uid
+          || isAdmin()
+        );
+      allow delete: if isAdmin();
+    }
+
     // ─── Contact Submissions (public site form → admin messages) ───
     match /contactSubmissions/{subId} {
       allow create: if true;                 // Anyone can submit the contact form

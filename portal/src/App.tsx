@@ -36,6 +36,7 @@ import {
   TenantPaymentsPage,
   TenantRentHistoryPage,
   TenantDocumentsUploadPage,
+  TenantInspectionPage,
   PaymentSuccessPage,
   TenantMaintenancePage,
   TenantMessagesPage,
@@ -140,6 +141,7 @@ function App() {
             <Route path="documents" element={<TenantDocumentsUploadPage />} />
             <Route path="messages" element={<TenantMessagesPage />} />
             <Route path="alerts" element={<TenantAlertsPage />} />
+            <Route path="inspection" element={<TenantInspectionPage />} />
             <Route path="settings" element={<TenantSettingsPage />} />
           </Route>
           

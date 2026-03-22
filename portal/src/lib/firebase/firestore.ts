@@ -37,6 +37,7 @@ import type {
   ActivityLog,
   LeaseTemplate,
   GeneratedLease,
+  MoveInInspection,
 } from '../../types';
 
 // Helper to convert Firestore timestamps to Date objects
@@ -618,6 +619,23 @@ export const generatedLeaseService = {
 
   update: (id: string, data: Partial<GeneratedLease>) =>
     updateDocument<GeneratedLease>('generatedLeases', id, data),
+};
+
+// ==================== MOVE-IN INSPECTIONS ====================
+export const inspectionService = {
+  get: (id: string) => getDocument<MoveInInspection>('inspections', id),
+
+  getByLease: (leaseId: string) =>
+    getDocuments<MoveInInspection>('inspections', where('leaseId', '==', leaseId)),
+
+  getByTenant: (tenantUid: string) =>
+    getDocuments<MoveInInspection>('inspections', where('tenantUid', '==', tenantUid), orderBy('createdAt', 'desc')),
+
+  create: (data: Omit<MoveInInspection, 'id' | 'createdAt' | 'updatedAt'>) =>
+    createDocument<MoveInInspection>('inspections', data),
+
+  update: (id: string, data: Partial<MoveInInspection>) =>
+    updateDocument<MoveInInspection>('inspections', id, data),
 };
 
 // ==================== CONTACT SUBMISSIONS ====================

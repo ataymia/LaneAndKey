@@ -346,15 +346,20 @@ export interface LeaseAttachment {
 export type LeaseTemplateStatus = 'draft' | 'published' | 'archived';
 export type LeaseTemplateFormat = 'html' | 'markdown';
 export type TemplateFieldType = 'text' | 'date' | 'money' | 'list' | 'boolean';
-export type SignatureFieldType = 'signature' | 'date' | 'initial';
+export type SignatureFieldType = 'signature' | 'date' | 'initial' | 'check' | 'text';
 export type SignatureFieldRole = 'tenant' | 'landlord';
+export type FieldOwnerRole = 'admin' | 'tenant' | 'landlord';
+export type FieldPhase = 'generation' | 'signing' | 'move_in_inspection' | 'any';
 export type LeaseSigningStatus = 'not_generated' | 'generated' | 'sent' | 'viewed' | 'signed';
+export type InspectionStatus = 'not_started' | 'in_progress' | 'submitted';
 
 export interface TemplateFieldDef {
   key: string;
   label: string;
   type: TemplateFieldType;
   required: boolean;
+  ownerRole?: FieldOwnerRole;       // defaults to 'admin' for backward compat
+  phase?: FieldPhase;               // defaults to 'generation'
   default?: string;
 }
 
@@ -365,6 +370,8 @@ export interface SignatureFieldDef {
   anchor: string;           // e.g. [[SIGNATURE:tenant]]
   required: boolean;
   displayLabel: string;     // e.g. "Tenant Signature"
+  ownerRole?: FieldOwnerRole;
+  phase?: FieldPhase;
 }
 
 export interface LeaseTemplate {
@@ -393,9 +400,33 @@ export interface LeaseSignatureFieldValue {
   height: number;
   required: boolean;
   displayLabel: string;
+  ownerRole?: FieldOwnerRole;
+  phase?: FieldPhase;
   value?: string;                // date string or typed name
   signedImagePath?: string;      // Storage path for signature/initial image
   completedAt?: Date;
+}
+
+// Move-in Inspection response (stored per field)
+export interface InspectionFieldResponse {
+  fieldId: string;
+  type: 'check' | 'text' | 'date';
+  label: string;
+  value: string;                 // 'true'/'false' for check, text for text/date
+  completedAt: Date;
+}
+
+// Move-in Inspection record (stored at leases/{leaseId}/inspection)
+export interface MoveInInspection {
+  id: string;
+  leaseId: string;
+  tenantUid: string;
+  propertyId: string;
+  status: InspectionStatus;
+  responses: InspectionFieldResponse[];
+  submittedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Generated lease document tracking (extends portalDocuments)
@@ -680,7 +711,8 @@ export type ActivityAction =
   | 'template_published'
   | 'lease_generated'
   | 'lease_sent_for_signature'
-  | 'lease_signed';
+  | 'lease_signed'
+  | 'inspection_submitted';
 
 export interface ActivityLog {
   id: string;
