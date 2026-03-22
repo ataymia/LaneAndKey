@@ -138,7 +138,7 @@ function parseTemplate(body: string, signatureSchema: SignatureFieldDef[]): Layo
     const anchorMatch = line.match(ANCHOR_REGEX);
     if (anchorMatch) {
       let remaining = line;
-      let anchorRegexInner = /\[\[(SIGNATURE|DATE|INITIAL):([^\]]+)\]\]/;
+      let anchorRegexInner = /\[\[(SIGNATURE|DATE|INITIAL|CHECK|TEXT):([^\]]+)\]\]/;
       let m: RegExpMatchArray | null;
       while ((m = remaining.match(anchorRegexInner))) {
         const before = remaining.substring(0, m.index!).trim();
@@ -514,8 +514,8 @@ export function buildFieldSchemaFromPlaceholders(
 /* ─── Determine ownerRole and phase from anchor detail ─── */
 function inferOwnerAndPhase(type: string, detail: string): { ownerRole: FieldOwnerRole; phase: FieldPhase; required: boolean } {
   const lowerDetail = detail.toLowerCase();
-  // Inspection anchors: [[CHECK:inspection:...]] or [[TEXT:inspection:...]]
-  if (lowerDetail.startsWith('inspection') || lowerDetail.includes('inspection')) {
+  // Move-in inspection anchors: [[CHECK:move_in:...]] or [[TEXT:move_in:...]]
+  if (lowerDetail.startsWith('move_in') || lowerDetail.startsWith('inspection') || lowerDetail.includes('inspection')) {
     return { ownerRole: 'tenant', phase: 'move_in_inspection', required: false };
   }
   // Signing anchors: signature, date (for signing), initial
@@ -535,8 +535,10 @@ export function buildSignatureSchemaFromAnchors(
   return anchors.map((a, i) => {
     const type = a.type.toLowerCase() as 'signature' | 'date' | 'initial' | 'check' | 'text';
     const parts = a.detail.split(':');
-    const role = (parts[0] === 'landlord' ? 'landlord' : 'tenant') as 'tenant' | 'landlord';
-    const section = parts.slice(1).join(':') || parts[0];
+    // For namespace-based anchors (move_in:field, inspection:field), role is always tenant
+    const isNamespaced = ['move_in', 'inspection'].includes(parts[0]);
+    const role = (!isNamespaced && parts[0] === 'landlord' ? 'landlord' : 'tenant') as 'tenant' | 'landlord';
+    const section = isNamespaced ? parts.slice(1).join(':') || parts[0] : parts.slice(1).join(':') || parts[0];
     const id = `${type}_${a.detail.replace(/[^a-zA-Z0-9]/g, '_')}_${i}`;
     const { ownerRole, phase, required } = inferOwnerAndPhase(a.type, a.detail);
     const displayLabel = section

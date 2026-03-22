@@ -98,40 +98,40 @@ by and between the Landlord and the Tenant identified below.</p>
 
 <h2>MOVE-IN INSPECTION CHECKLIST</h2>
 <p><em>To be completed by Tenant upon move-in. This section is optional and does not block lease signing.</em></p>
-<p>Inspection Date: [[DATE:inspection_checklist_date]]</p>
+<p>Inspection Date: [[DATE:move_in:inspection_date]]</p>
 
 <p><strong>Bathrooms:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:bathrooms_ok]] Comments: [[TEXT:inspection:bathrooms_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:bathrooms_ok]] Comments: [[TEXT:move_in:bathrooms_comments]]</p>
 
 <p><strong>Carpeting / Flooring:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:carpeting_ok]] Comments: [[TEXT:inspection:carpeting_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:carpeting_ok]] Comments: [[TEXT:move_in:carpeting_comments]]</p>
 
 <p><strong>Ceilings:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:ceilings_ok]] Comments: [[TEXT:inspection:ceilings_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:ceilings_ok]] Comments: [[TEXT:move_in:ceilings_comments]]</p>
 
 <p><strong>Closets / Storage:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:closets_ok]] Comments: [[TEXT:inspection:closets_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:closets_ok]] Comments: [[TEXT:move_in:closets_comments]]</p>
 
 <p><strong>Countertops:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:countertops_ok]] Comments: [[TEXT:inspection:countertops_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:countertops_ok]] Comments: [[TEXT:move_in:countertops_comments]]</p>
 
 <p><strong>Doors / Locks:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:doors_ok]] Comments: [[TEXT:inspection:doors_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:doors_ok]] Comments: [[TEXT:move_in:doors_comments]]</p>
 
 <p><strong>Electrical / Outlets:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:electrical_ok]] Comments: [[TEXT:inspection:electrical_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:electrical_ok]] Comments: [[TEXT:move_in:electrical_comments]]</p>
 
 <p><strong>Kitchen Appliances:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:kitchen_ok]] Comments: [[TEXT:inspection:kitchen_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:kitchen_ok]] Comments: [[TEXT:move_in:kitchen_comments]]</p>
 
 <p><strong>Walls / Paint:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:walls_ok]] Comments: [[TEXT:inspection:walls_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:walls_ok]] Comments: [[TEXT:move_in:walls_comments]]</p>
 
 <p><strong>Windows / Screens:</strong></p>
-<p>Satisfactory: [[CHECK:inspection:windows_ok]] Comments: [[TEXT:inspection:windows_comments]]</p>
+<p>Satisfactory: [[CHECK:move_in:windows_ok]] Comments: [[TEXT:move_in:windows_comments]]</p>
 
 <p><strong>General Condition Notes:</strong></p>
-<p>[[TEXT:inspection:general_notes]]</p>
+<p>[[TEXT:move_in:general_notes]]</p>
 `;
 
 /* ─── Component ─── */

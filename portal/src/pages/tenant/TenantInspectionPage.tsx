@@ -6,7 +6,6 @@ import { useAuth } from '../../contexts';
 import {
   inspectionService,
   generatedLeaseService,
-  leaseTemplateService,
 } from '../../lib/firebase/firestore';
 import { isFirebaseConfigured } from '../../lib/firebase/config';
 import type {
@@ -37,17 +36,26 @@ export function TenantInspectionPage() {
       // Find the tenant's generated lease
       const genLeases = await generatedLeaseService.getByTenant(user.uid);
       const active = genLeases.find(g =>
-        g.signingStatus === 'sent' || g.signingStatus === 'viewed' || g.signingStatus === 'signed'
+        g.signingStatus === 'sent' || g.signingStatus === 'viewed' || g.signingStatus === 'signed' || g.signingStatus === 'generated'
       );
       if (active) {
         setGenLease(active);
 
-        // Get the template to find inspection fields
-        const template = await leaseTemplateService.get(active.templateId);
-        if (template) {
-          const inspFields = template.signatureSchema.filter(s => s.phase === 'move_in_inspection');
-          setInspectionFields(inspFields);
-        }
+        // Extract inspection fields directly from generated lease signatureFields
+        // (tenants cannot read leaseTemplates collection — admin-only)
+        const inspFields: SignatureFieldDef[] = active.signatureFields
+          .filter(sf => sf.phase === 'move_in_inspection')
+          .map(sf => ({
+            id: sf.fieldId,
+            type: sf.type,
+            role: sf.role,
+            anchor: '', // not needed for form rendering
+            required: sf.required,
+            displayLabel: sf.displayLabel,
+            ownerRole: sf.ownerRole,
+            phase: sf.phase,
+          }));
+        setInspectionFields(inspFields);
       }
 
       // Check for existing inspection record
@@ -147,13 +155,18 @@ export function TenantInspectionPage() {
   const textFields = inspectionFields.filter(f => f.type === 'text');
   const dateFields = inspectionFields.filter(f => f.type === 'date');
 
-  // Group check+text by common prefix  (e.g. inspection:bathrooms_ok + inspection:bathrooms_comments)
+  // Group check+text by common prefix using fieldId
+  // fieldId format: "check_move_in_bathrooms_ok_N" or "text_move_in_bathrooms_comments_N"
   const categories = new Map<string, { check?: SignatureFieldDef; text?: SignatureFieldDef }>();
   for (const f of [...checkFields, ...textFields]) {
-    // anchor like [[CHECK:inspection:bathrooms_ok]] => detail = "inspection:bathrooms_ok"
-    const parts = f.anchor.replace(/\[\[.*?:/, '').replace(/\]\]/, '').split(':');
-    const fieldName = parts[parts.length - 1]; // e.g. "bathrooms_ok" or "bathrooms_comments"
-    const base = fieldName.replace(/_(ok|comments|satisfactory)$/, '');
+    // Extract the base area name from the fieldId
+    // e.g. "check_move_in_bathrooms_ok_5" → strip type prefix + namespace + suffix index
+    const idParts = f.id.split('_');
+    // Remove first part (check/text), 'move' and 'in' namespace parts, and last part (index)
+    // Then remove _ok / _comments suffix
+    const withoutPrefix = idParts.slice(1).slice(0, -1).join('_'); // "move_in_bathrooms_ok"
+    const withoutNs = withoutPrefix.replace(/^move_in_/, '').replace(/^inspection_/, '');
+    const base = withoutNs.replace(/_(ok|comments|satisfactory)$/, '');
     if (!categories.has(base)) categories.set(base, {});
     const cat = categories.get(base)!;
     if (f.type === 'check') cat.check = f;
@@ -242,15 +255,16 @@ export function TenantInspectionPage() {
 
           {/* Standalone text fields not paired with a check (e.g. general_notes) */}
           {textFields.filter(f => {
-            const parts = f.anchor.replace(/\[\[.*?:/, '').replace(/\]\]/, '').split(':');
-            const fieldName = parts[parts.length - 1];
-            const base = fieldName.replace(/_(ok|comments|satisfactory)$/, '');
+            const idParts = f.id.split('_');
+            const withoutPrefix = idParts.slice(1).slice(0, -1).join('_');
+            const withoutNs = withoutPrefix.replace(/^move_in_/, '').replace(/^inspection_/, '');
+            const base = withoutNs.replace(/_(ok|comments|satisfactory)$/, '');
             return !categories.has(base) || !categories.get(base)?.check;
           }).filter(f => {
-            // Exclude those already shown in categories
-            const parts = f.anchor.replace(/\[\[.*?:/, '').replace(/\]\]/, '').split(':');
-            const fieldName = parts[parts.length - 1];
-            return !fieldName.endsWith('_comments');
+            // Exclude those already shown in categories as paired comments
+            const idParts = f.id.split('_');
+            const withoutPrefix = idParts.slice(1).slice(0, -1).join('_');
+            return !withoutPrefix.endsWith('_comments');
           }).map(f => (
             <div key={f.id} className="inspection-row">
               <span className="inspection-area-label">{f.displayLabel}</span>
