@@ -144,8 +144,8 @@ export async function getUserProfile(uid: string, user?: { email: string | null;
     return null;
   } catch (error) {
     console.error('[Auth] Error fetching user profile:', error);
-    // Return null on permission errors - profile will need to be created
-    return null;
+    // Propagate the actual error so callers can show a useful message
+    throw error;
   }
 }
 

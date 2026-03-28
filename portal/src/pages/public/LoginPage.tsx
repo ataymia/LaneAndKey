@@ -10,10 +10,10 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, userProfile, isDemoMode } = useAuth();
+  const { signIn, user, userProfile, isDemoMode } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect based on role after login
+  // Redirect based on role after login (or to home if profile failed to load)
   useEffect(() => {
     if (userProfile) {
       switch (userProfile.role) {
@@ -27,8 +27,11 @@ export function LoginPage() {
           navigate('/applicant', { replace: true });
           break;
       }
+    } else if (user) {
+      // Auth succeeded but profile failed — send to home so ProtectedRoute shows retry
+      navigate('/', { replace: true });
     }
-  }, [userProfile, navigate]);
+  }, [user, userProfile, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

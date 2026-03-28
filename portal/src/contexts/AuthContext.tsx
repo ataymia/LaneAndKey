@@ -225,12 +225,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       setUserProfile(profile);
       if (!profile) {
-        throw new Error('Could not load your profile. Please contact support.');
+        setProfileError('Could not load your profile. Please try again.');
       }
     } catch (err) {
+      console.error('[AuthProvider] Profile fetch failed after sign-in:', err);
       const msg = err instanceof Error ? err.message : 'Failed to load profile';
       setProfileError(msg);
-      throw new Error(msg);
+      // Don't throw — auth succeeded. ProtectedRoute will show retry screen.
     }
   };
 
