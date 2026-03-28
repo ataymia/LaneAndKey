@@ -215,7 +215,7 @@ function drawFieldBox(
     color: rgb(0.4, 0.4, 0.4),
   });
   // Draw X marker inside
-  page.drawText('✕', {
+  page.drawText('X', {
     x: x + w / 2 - 4,
     y: y + h / 2 - 5,
     size: 12,
@@ -542,7 +542,7 @@ export function buildSignatureSchemaFromAnchors(
     const id = `${type}_${a.detail.replace(/[^a-zA-Z0-9]/g, '_')}_${i}`;
     const { ownerRole, phase, required } = inferOwnerAndPhase(a.type, a.detail);
     const displayLabel = section
-      ? `${type === 'check' ? '☐' : type === 'text' ? '✎' : role === 'landlord' ? 'Landlord' : 'Tenant'} ${type === 'check' || type === 'text' ? section.replace(/_/g, ' ') : type + ' (' + section.replace(/_/g, ' ') + ')'}`
+      ? `${type === 'check' ? '[Check]' : type === 'text' ? '[Text]' : role === 'landlord' ? 'Landlord' : 'Tenant'} ${type === 'check' || type === 'text' ? section.replace(/_/g, ' ') : type + ' (' + section.replace(/_/g, ' ') + ')'}`
       : `${role === 'landlord' ? 'Landlord' : 'Tenant'} ${type.charAt(0).toUpperCase() + type.slice(1)}`;
     return { id, type, role, anchor: a.full, required, displayLabel, ownerRole, phase };
   });
