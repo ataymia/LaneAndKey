@@ -48,6 +48,53 @@ const TEXT_BOX_HEIGHT = 24;
 const ANCHOR_REGEX = /\[\[(SIGNATURE|DATE|INITIAL|CHECK|TEXT):([^\]]+)\]\]/g;
 const PLACEHOLDER_REGEX = /\{\{([A-Z_]+)\}\}/g;
 
+/**
+ * Sanitize text to only contain characters encodable in WinAnsi (Windows-1252).
+ * pdf-lib StandardFonts use WinAnsi encoding; any codepoint outside this set
+ * causes a fatal "WinAnsi cannot encode" error at PDF save time.
+ *
+ * Strategy: map common look-alike Unicode → ASCII, strip the rest.
+ */
+const WINANSI_REPLACEMENTS: [RegExp, string][] = [
+  // Smart quotes → straight quotes
+  [/[\u2018\u2019\u201A]/g, "'"],
+  [/[\u201C\u201D\u201E]/g, '"'],
+  // Dashes
+  [/\u2013/g, '-'],   // en-dash
+  [/\u2014/g, '--'],  // em-dash
+  // Ellipsis
+  [/\u2026/g, '...'],
+  // Bullets / misc
+  [/\u2022/g, '*'],
+  [/\u00A0/g, ' '],   // non-breaking space (this IS in WinAnsi, but normalize anyway)
+  // Greek look-alikes → Latin equivalents
+  [/\u0391/g, 'A'], [/\u0392/g, 'B'], [/\u0395/g, 'E'], [/\u0396/g, 'Z'],
+  [/\u0397/g, 'H'], [/\u0399/g, 'I'], [/\u039A/g, 'K'], [/\u039C/g, 'M'],
+  [/\u039D/g, 'N'], [/\u039F/g, 'O'], [/\u03A1/g, 'P'], [/\u03A4/g, 'T'],
+  [/\u03A5/g, 'Y'], [/\u03A7/g, 'X'],
+  [/\u03B1/g, 'a'], [/\u03B5/g, 'e'], [/\u03B9/g, 'i'], [/\u03BF/g, 'o'],
+  [/\u03C5/g, 'u'],
+  // Cyrillic look-alikes → Latin
+  [/\u0410/g, 'A'], [/\u0412/g, 'B'], [/\u0415/g, 'E'], [/\u041A/g, 'K'],
+  [/\u041C/g, 'M'], [/\u041D/g, 'H'], [/\u041E/g, 'O'], [/\u0420/g, 'P'],
+  [/\u0421/g, 'C'], [/\u0422/g, 'T'], [/\u0423/g, 'Y'], [/\u0425/g, 'X'],
+  [/\u0430/g, 'a'], [/\u0435/g, 'e'], [/\u043E/g, 'o'], [/\u0440/g, 'p'],
+  [/\u0441/g, 'c'], [/\u0443/g, 'y'], [/\u0445/g, 'x'],
+];
+
+function sanitizeForWinAnsi(text: string): string {
+  let s = text;
+  for (const [pattern, replacement] of WINANSI_REPLACEMENTS) {
+    s = s.replace(pattern, replacement);
+  }
+  // Strip any remaining non-WinAnsi characters.
+  // WinAnsi supports: 0x20-0x7E (basic Latin), 0xA0-0xFF (Latin-1 supplement),
+  // plus specific chars at 0x80-0x9F (smart quotes, dashes, etc. already handled above).
+  // eslint-disable-next-line no-control-regex
+  s = s.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+  return s;
+}
+
 /* ─── Types ─── */
 interface LayoutBlock {
   type: 'heading' | 'paragraph' | 'anchor' | 'spacer';
@@ -171,7 +218,8 @@ function parseTemplate(body: string, signatureSchema: SignatureFieldDef[]): Layo
 
 /* ─── Word-wrap text to fit width ─── */
 function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
-  const words = text.split(/\s+/);
+  const safe = sanitizeForWinAnsi(text);
+  const words = safe.split(/\s+/);
   const lines: string[] = [];
   let currentLine = '';
 
@@ -207,7 +255,7 @@ function drawFieldBox(
     color: rgb(0.97, 0.97, 0.97),
   });
   // Draw label above
-  page.drawText(label, {
+  page.drawText(sanitizeForWinAnsi(label), {
     x: x + 2,
     y: y + h + 3,
     size: 7,
@@ -277,7 +325,7 @@ export async function generateLeasePdf(
       case 'heading': {
         ensureSpace(HEADING_SIZE + LINE_HEIGHT);
         cursorY -= 6; // extra space before heading
-        page.drawText(block.text!, {
+        page.drawText(sanitizeForWinAnsi(block.text!), {
           x: MARGIN_LEFT,
           y: cursorY,
           size: HEADING_SIZE,
@@ -374,7 +422,7 @@ export async function generateLeasePdf(
 
   // Footer with template info
   page.drawText(
-    `Generated from template "${template.name}" v${template.version}`,
+    sanitizeForWinAnsi(`Generated from template "${template.name}" v${template.version}`),
     {
       x: MARGIN_LEFT,
       y: MARGIN_BOTTOM / 2,
@@ -409,7 +457,7 @@ export async function applySignaturesToPdf(
       // The signedImagePath will be a data URL or bytes — handled by caller
       // For typed signatures, render text in italic
       if (field.value) {
-        pg.drawText(field.value, {
+        pg.drawText(sanitizeForWinAnsi(field.value), {
           x: field.x + 4,
           y: field.y + field.height / 2 - 6,
           size: 18,
@@ -418,7 +466,7 @@ export async function applySignaturesToPdf(
         });
       }
     } else if (field.type === 'date') {
-      pg.drawText(field.value || new Date().toLocaleDateString('en-US'), {
+      pg.drawText(sanitizeForWinAnsi(field.value || new Date().toLocaleDateString('en-US')), {
         x: field.x + 4,
         y: field.y + field.height / 2 - 5,
         size: 10,
@@ -426,7 +474,7 @@ export async function applySignaturesToPdf(
         color: rgb(0.1, 0.1, 0.1),
       });
     } else if (field.type === 'initial') {
-      pg.drawText(field.value || signerName.split(' ').map(n => n[0]).join(''), {
+      pg.drawText(sanitizeForWinAnsi(field.value || signerName.split(' ').map(n => n[0]).join('')), {
         x: field.x + 4,
         y: field.y + field.height / 2 - 5,
         size: 12,
@@ -440,7 +488,7 @@ export async function applySignaturesToPdf(
   const lastPage = pages[pages.length - 1];
   const ts = new Date().toISOString();
   lastPage.drawText(
-    `E-signed by ${signerName} on ${ts}`,
+    sanitizeForWinAnsi(`E-signed by ${signerName} on ${ts}`),
     { x: 40, y: 16, size: 7, font, color: rgb(0.4, 0.4, 0.4) },
   );
 
