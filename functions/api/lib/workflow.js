@@ -145,16 +145,28 @@ export function defaultLeasePayload({
   rentAmountCents,
   depositAmountCents,
   startDate,
+  endDate,
   createdByUid,
   status,
 }) {
   const now = new Date().toISOString();
+  const start = startDate || todayDateString();
+
+  // Default endDate: 12 months from start if not explicitly provided
+  let computedEndDate = endDate || null;
+  if (!computedEndDate) {
+    const startParts = start.split('-');
+    const d = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2]));
+    d.setFullYear(d.getFullYear() + 1);
+    computedEndDate = d.toISOString().slice(0, 10);
+  }
+
   return {
     tenantUid,
     tenantIds: [tenantUid],
     propertyId,
-    startDate: startDate || todayDateString(),
-    endDate: null,
+    startDate: start,
+    endDate: computedEndDate,
     rentAmountCents,
     depositAmountCents,
     monthlyRent: rentAmountCents / 100,

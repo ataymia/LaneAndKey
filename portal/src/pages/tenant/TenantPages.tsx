@@ -490,19 +490,127 @@ export function TenantMessagesPage() {
 }
 
 export function TenantAlertsPage() {
+  const { userProfile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState<import('../../types').Alert[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userProfile?.uid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const { alertService } = await import('../../lib/firebase/firestore');
+        const data = await alertService.getByUser(userProfile.uid);
+        if (!cancelled) setAlerts(data);
+      } catch (err) {
+        console.error('Failed to load alerts:', err);
+        if (!cancelled) setError('Failed to load alerts. Please refresh.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userProfile?.uid]);
+
+  const handleMarkRead = async (alertId: string) => {
+    try {
+      const { alertService } = await import('../../lib/firebase/firestore');
+      await alertService.markAsRead(alertId);
+      setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, read: true } : a));
+    } catch (err) {
+      console.error('Failed to mark alert as read:', err);
+    }
+  };
+
+  const handleArchive = async (alertId: string) => {
+    try {
+      const { alertService } = await import('../../lib/firebase/firestore');
+      await alertService.archive(alertId);
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    } catch (err) {
+      console.error('Failed to archive alert:', err);
+    }
+  };
+
+  const unreadCount = alerts.filter((a) => !a.read).length;
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="page-header"><h1>Alerts</h1><p>Loading notifications...</p></div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Alerts</h1>
+        <h1>Alerts {unreadCount > 0 && <span style={{ fontSize: '0.75em', background: 'var(--danger-color, #ef4444)', color: '#fff', borderRadius: '12px', padding: '2px 8px', marginLeft: '8px' }}>{unreadCount}</span>}</h1>
         <p>View your notifications</p>
       </div>
-      <div className="empty-state">
-        <div className="empty-state-icon">🔔</div>
-        <h3 className="empty-state-title">No alerts</h3>
-        <p className="empty-state-description">
-          You're all caught up! No new notifications.
-        </p>
-      </div>
+
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+          {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: '8px', border: 'none', background: 'none', cursor: 'pointer' }}>&times;</button>
+        </div>
+      )}
+
+      {alerts.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔔</div>
+          <h3 className="empty-state-title">No alerts</h3>
+          <p className="empty-state-description">
+            You're all caught up! No new notifications.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              style={{
+                padding: '1rem 1.25rem',
+                borderRadius: '8px',
+                border: `1px solid ${alert.read ? 'var(--border-color, #e2e8f0)' : 'var(--primary-color, #3b82f6)'}`,
+                background: alert.read ? 'var(--card-bg, #fff)' : 'rgba(59,130,246,0.04)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '1rem',
+              }}
+            >
+              <div style={{ flex: '0 0 8px', marginTop: '6px' }}>
+                {!alert.read && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary-color, #3b82f6)' }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: alert.read ? 400 : 600, marginBottom: '4px' }}>{alert.title}</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted, #64748b)' }}>{alert.message}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', marginTop: '6px' }}>
+                  {new Date(alert.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                {!alert.read && (
+                  <button
+                    onClick={() => handleMarkRead(alert.id)}
+                    style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-bg, #fff)', cursor: 'pointer' }}
+                  >
+                    Mark Read
+                  </button>
+                )}
+                <button
+                  onClick={() => handleArchive(alert.id)}
+                  style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color, #e2e8f0)', background: 'var(--card-bg, #fff)', cursor: 'pointer', color: 'var(--text-muted, #64748b)' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

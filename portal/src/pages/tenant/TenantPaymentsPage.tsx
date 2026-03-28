@@ -81,7 +81,8 @@ export function TenantPaymentsPage() {
         setLedgerByStatement(nextLedgerMap);
       } catch (loadError) {
         console.error('Error loading tenant payments:', loadError);
-        setError(loadError instanceof Error ? loadError.message : 'Failed to load payment data');
+        const msg = loadError instanceof Error ? loadError.message : 'Failed to load payment data';
+        setError(msg.includes('401') || msg.includes('auth') ? 'Session expired. Please refresh the page.' : msg);
       } finally {
         setLoading(false);
       }

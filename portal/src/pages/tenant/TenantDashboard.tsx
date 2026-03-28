@@ -47,8 +47,14 @@ export function TenantDashboard() {
         }
 
         const [statementData, maintenanceData] = await Promise.all([
-          rentStatementService.getByTenantUid(userProfile.uid),
-          maintenanceService.getByTenant(userProfile.uid),
+          rentStatementService.getByTenantUid(userProfile.uid).catch((err) => {
+            console.warn('Failed to load rent statements:', err);
+            return [] as RentStatement[];
+          }),
+          maintenanceService.getByTenant(userProfile.uid).catch((err) => {
+            console.warn('Failed to load maintenance tickets:', err);
+            return [];
+          }),
         ]);
 
         setStatements(statementData);

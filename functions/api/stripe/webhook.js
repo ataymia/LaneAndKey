@@ -272,6 +272,27 @@ async function handleCheckoutCompleted(session, env) {
     console.error('Failed to create payment record:', err);
   }
 
+  // 4. Create an alert for the tenant
+  if (tenantUid && projectId) {
+    try {
+      const cents = amountReceived || 0;
+      const dollars = (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+      await createDocument(projectId, 'alerts', {
+        userId: tenantUid,
+        type: 'payment_received',
+        title: 'Payment Received',
+        message: `Your payment of ${dollars} has been received and applied to your account.`,
+        relatedId: statementId || '',
+        relatedType: 'payment',
+        read: false,
+        archived: false,
+        createdAt: now,
+      });
+    } catch (err) {
+      console.error('Failed to create payment alert:', err);
+    }
+  }
+
   return { success: true, action: 'checkout_completed' };
 }
 
@@ -321,6 +342,24 @@ async function handlePaymentFailed(paymentIntent, env) {
       });
     } catch (err) {
       console.error('Failed to record failed payment:', err);
+    }
+
+    // Create a failed payment alert for the tenant
+    if (metadata.tenantUid) {
+      try {
+        await setDocument(projectId, 'alerts', `alert_payfail_${paymentIntent.id}`, {
+          userId: metadata.tenantUid,
+          type: 'payment_failed',
+          title: 'Payment Failed',
+          message: `A payment attempt failed: ${lastError?.message || 'Unknown error'}. Please try again.`,
+          relatedType: 'payment',
+          read: false,
+          archived: false,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (alertErr) {
+        console.error('Failed to create payment-failed alert:', alertErr);
+      }
     }
   }
   

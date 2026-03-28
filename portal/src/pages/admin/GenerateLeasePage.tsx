@@ -224,6 +224,22 @@ export function GenerateLeasePage() {
       if (gen.portalDocumentId) {
         await portalDocumentService.update(gen.portalDocumentId, { status: 'pending_signature' });
       }
+      // Create alert for tenant
+      try {
+        const { alertService } = await import('../../lib/firebase/firestore');
+        await alertService.create({
+          userId: gen.tenantUid,
+          type: 'general',
+          title: 'Lease Ready for Signature',
+          message: 'Your lease agreement is ready for electronic signature. Please review and sign at your earliest convenience.',
+          relatedId: gen.id,
+          relatedType: 'lease',
+          read: false,
+          archived: false,
+        });
+      } catch (alertErr) {
+        console.warn('Failed to create lease alert:', alertErr);
+      }
       await activityLogService.create({
         actorUid: adminUser!.uid,
         targetUid: gen.tenantUid,

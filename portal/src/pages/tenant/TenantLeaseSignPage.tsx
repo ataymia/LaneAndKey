@@ -57,11 +57,19 @@ export function TenantLeaseSignPage() {
   const [signError, setSignError] = useState<string | null>(null);
   const [signSuccess, setSignSuccess] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
 
   const isStructured = !!genLease?.signatureFields?.length;
 
   /* ─── Compute field completion status ─── */
-  const tenantFields = (genLease?.signatureFields ?? []).filter((f) => f.role === 'tenant');
+  // Only include signing-phase fields for the current tenant.
+  // Exclude move_in_inspection fields (handled separately in move-in flow).
+  const tenantFields = (genLease?.signatureFields ?? []).filter((f) => {
+    if (f.role !== 'tenant') return false;
+    // Exclude inspection-phase fields
+    if (f.phase === 'move_in_inspection') return false;
+    return true;
+  });
   const completedCount = tenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
   const allFieldsDone = tenantFields.length > 0 && completedCount === tenantFields.length;
 
@@ -119,6 +127,37 @@ export function TenantLeaseSignPage() {
     }
     load();
   }, [user]);
+
+  /* ─── Rebuild PDF preview whenever fields are completed ─── */
+  useEffect(() => {
+    if (!pdfUrl || !genLease) return;
+    const completed = Object.values(fieldCompletions).filter((f) => f.completedAt && f.value);
+    if (completed.length === 0) {
+      // No completions yet — use original
+      setPreviewPdfUrl(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const originalBytes = await fetch(pdfUrl).then((r) => r.arrayBuffer());
+        const updatedBytes = await applySignaturesToPdf(
+          new Uint8Array(originalBytes),
+          completed,
+          userProfile?.displayName || 'Tenant',
+        );
+        if (cancelled) return;
+        // Revoke old preview URL to avoid memory leaks
+        if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+        const blob = new Blob([updatedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+        setPreviewPdfUrl(URL.createObjectURL(blob));
+      } catch (err) {
+        console.error('Failed to rebuild PDF preview:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldCompletions, pdfUrl, genLease]);
 
   /* ─── Init signature pad when modal opens ─── */
   const initSigPad = useCallback(() => {
@@ -253,9 +292,10 @@ export function TenantLeaseSignPage() {
       // Fetch original PDF
       const pdfBytes = await fetch(pdfUrl).then((r) => r.arrayBuffer());
 
-      // Build completed fields array with values
+      // Build completed fields array — only signing-phase tenant_1 fields
+      const signingFieldIds = new Set(tenantFields.map((f) => f.fieldId));
       const completedFields: LeaseSignatureFieldValue[] = Object.values(fieldCompletions).filter(
-        (f) => f.role === 'tenant' && f.value
+        (f) => signingFieldIds.has(f.fieldId) && f.value
       );
 
       // Apply signatures/dates/initials to the PDF at exact coordinates
@@ -275,10 +315,10 @@ export function TenantLeaseSignPage() {
       // Compute hash
       const sigHash = await sha256Hex(signedPdfBytes);
 
-      // Update generated lease record
+      // Update generated lease record — only update signing-phase fields
       const updatedFields = (genLease.signatureFields ?? []).map((f) => {
         const completed = fieldCompletions[f.fieldId];
-        if (completed?.value && f.role === 'tenant') {
+        if (completed?.value && signingFieldIds.has(f.fieldId)) {
           return { ...f, value: completed.value, completedAt: completed.completedAt };
         }
         return f;
@@ -471,9 +511,9 @@ export function TenantLeaseSignPage() {
           </div>
 
           {/* PDF preview */}
-          {pdfUrl && (
+          {(previewPdfUrl || pdfUrl) && (
             <div className="pdf-preview">
-              <iframe src={pdfUrl} title="Lease Preview" />
+              <iframe src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
             </div>
           )}
 
