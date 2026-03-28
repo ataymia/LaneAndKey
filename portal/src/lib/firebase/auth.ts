@@ -96,10 +96,15 @@ export async function getUserProfile(uid: string, user?: { email: string | null;
     if (docSnap.exists()) {
       const data = docSnap.data();
       console.log('[Auth] User profile found');
+      const toDate = (v: unknown): Date => {
+        if (v && typeof (v as any).toDate === 'function') return (v as any).toDate();
+        if (typeof v === 'string' || typeof v === 'number') return new Date(v);
+        return new Date();
+      };
       return {
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
       } as UserProfile;
     }
     
