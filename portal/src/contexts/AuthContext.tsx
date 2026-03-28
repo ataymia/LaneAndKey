@@ -214,8 +214,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       localStorage.setItem('demo_user_profile', JSON.stringify(demoAccount.profile));
       return;
     }
-    await firebaseSignIn(email, password);
-    // Profile will be fetched automatically by onAuthChange
+    const cred = await firebaseSignIn(email, password);
+    // Eagerly fetch profile so callers have it immediately (don't rely on onAuthChange race)
+    setUser(cred);
+    try {
+      setProfileError(null);
+      const profile = await getUserProfile(cred.uid, {
+        email: cred.email,
+        displayName: cred.displayName,
+      });
+      setUserProfile(profile);
+      if (!profile) {
+        throw new Error('Could not load your profile. Please contact support.');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load profile';
+      setProfileError(msg);
+      throw new Error(msg);
+    }
   };
 
   const logOut = async () => {
