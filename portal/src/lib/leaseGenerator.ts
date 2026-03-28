@@ -46,7 +46,7 @@ const TEXT_BOX_HEIGHT = 24;
 
 /* ─── Anchor regex ─── */
 const ANCHOR_REGEX = /\[\[(SIGNATURE|DATE|INITIAL|CHECK|TEXT):([^\]]+)\]\]/g;
-const PLACEHOLDER_REGEX = /\{\{([A-Z_]+)\}\}/g;
+const PLACEHOLDER_REGEX = /\{\{([A-Z0-9_]+)\}\}/g;
 
 /**
  * Sanitize text to only contain characters encodable in WinAnsi (Windows-1252).

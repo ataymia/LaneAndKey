@@ -17,6 +17,10 @@
 /portal/index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+# All deep portal routes get SPA-rewritten to index.html — must not be cached
+/portal/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
 # Long cache for hashed/fingerprinted assets (immutable content)
 /portal/assets/*
   Cache-Control: public, max-age=31536000, immutable

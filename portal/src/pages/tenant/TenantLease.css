@@ -300,4 +300,246 @@
 @media (max-width: 640px) {
   .pdf-preview { height: 300px; }
   .lease-card-header { flex-direction: column; align-items: flex-start; }
+  .ds-layout-split { flex-direction: column; }
+  .ds-signing-panel { max-width: 100%; }
+}
+
+/* ═══════════════════════════════════════
+   DocuSign-style signing layout
+   ═══════════════════════════════════════ */
+
+/* Progress bar */
+.ds-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.ds-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #4338ca;
+  white-space: nowrap;
+}
+
+.ds-progress-track {
+  flex: 1;
+  min-width: 100px;
+  height: 6px;
+  background: #e0e7ff;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ds-progress-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.ds-progress-ready {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+/* Split layout */
+.ds-layout {
+  display: flex;
+  gap: 1rem;
+}
+
+.ds-layout-split .ds-pdf-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.ds-layout-split .ds-signing-panel {
+  flex: 0 0 340px;
+  max-width: 340px;
+}
+
+.ds-pdf-panel {
+  flex: 1;
+}
+
+/* Signing sidebar */
+.ds-signing-panel {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ds-panel-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ds-panel-header h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ds-panel-header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+/* Field list */
+.ds-field-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  padding: 0.5rem;
+}
+
+.ds-field-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 2px solid transparent;
+  margin-bottom: 0.25rem;
+}
+
+.ds-field-item:hover {
+  background: #f9fafb;
+}
+
+.ds-field-pending {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.ds-field-pending:hover {
+  background: #fef3c7;
+}
+
+.ds-field-done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.ds-field-active {
+  border-color: #818cf8 !important;
+  background: #eef2ff !important;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.3);
+}
+
+.ds-field-icon {
+  flex: 0 0 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+}
+
+.ds-field-pending .ds-field-icon {
+  color: #d97706;
+  background: #fef3c7;
+}
+
+.ds-field-done .ds-field-icon {
+  color: #16a34a;
+  background: #dcfce7;
+}
+
+.ds-field-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ds-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ds-field-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-field-redo {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: #9ca3af;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  line-height: 1;
+}
+
+.ds-field-redo:hover {
+  color: #6366f1;
+  background: #eef2ff;
+}
+
+/* Navigation */
+.ds-nav-buttons {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ds-nav-buttons .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+/* Submit section */
+.ds-submit-section {
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.ds-submit-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.ds-submit-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #f59e0b;
+  text-align: center;
 }

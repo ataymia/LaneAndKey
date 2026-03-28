@@ -117,17 +117,51 @@ export function GenerateLeasePage() {
   useEffect(() => {
     if (!selectedTemplate) return;
     const vals: Record<string, string> = {};
+    const occupants = selectedLease?.occupants ?? [];
     for (const field of selectedTemplate.fieldSchema) {
       // Try to auto-fill from tenant/lease/property data
       const k = field.key;
-      if (k === 'TENANT_FULL_NAME' && selectedTenant) vals[k] = selectedTenant.displayName;
-      else if (k === 'TENANT_1_NAME' && selectedTenant) vals[k] = selectedTenant.displayName;
+      // Tenant names
+      if ((k === 'TENANT_FULL_NAME' || k === 'TENANT_1_NAME' || k === 'TENANT_NAME') && selectedTenant) vals[k] = selectedTenant.displayName;
+      else if (k === 'TENANT_1_EMAIL' && selectedTenant) vals[k] = selectedTenant.email;
+      else if (k === 'TENANT_1_PHONE' && selectedTenant?.phone) vals[k] = selectedTenant.phone;
+      // Additional tenants from lease occupants (index 0-based for occupants, 2-4 for tenants)
+      else if (/^TENANT_[2-4]_(NAME|EMAIL|PHONE)$/.test(k)) {
+        const idx = parseInt(k.charAt(7)) - 2; // TENANT_2 → occupant[0], TENANT_3 → occupant[1], etc.
+        const occ = occupants[idx];
+        if (occ) {
+          if (k.endsWith('_NAME')) vals[k] = occ.fullName;
+          else if (k.endsWith('_EMAIL')) vals[k] = occ.email || '';
+          else if (k.endsWith('_PHONE')) vals[k] = occ.phone || '';
+        } else vals[k] = fieldValues[k] || '';
+      }
+      // Occupant aliases (OCCUPANT_1_NAME = primary tenant, OCCUPANT_2_NAME = first occupant, etc.)
+      else if (/^OCCUPANT_\d+_/.test(k)) {
+        const idx = parseInt(k.split('_')[1]) - 1;
+        if (idx === 0 && selectedTenant) {
+          if (k.endsWith('_NAME')) vals[k] = selectedTenant.displayName;
+          else if (k.endsWith('_EMAIL')) vals[k] = selectedTenant.email;
+          else if (k.endsWith('_PHONE')) vals[k] = selectedTenant.phone || '';
+        } else {
+          const occ = occupants[idx - 1]; // OCCUPANT_2 → occupants[0]
+          if (occ) {
+            if (k.endsWith('_NAME')) vals[k] = occ.fullName;
+            else if (k.endsWith('_EMAIL')) vals[k] = occ.email || '';
+            else if (k.endsWith('_PHONE')) vals[k] = occ.phone || '';
+          } else vals[k] = fieldValues[k] || '';
+        }
+      }
+      // Property
       else if (k === 'PROPERTY_ADDRESS' && selectedProperty) vals[k] = `${selectedProperty.address}${selectedProperty.unit ? ` #${selectedProperty.unit}` : ''}, ${selectedProperty.city}, ${selectedProperty.state} ${selectedProperty.zip}`;
-      else if (k === 'LEASE_START_DATE' && selectedLease) vals[k] = new Date(selectedLease.startDate).toLocaleDateString('en-US');
-      else if (k === 'LEASE_END_DATE' && selectedLease?.endDate) vals[k] = new Date(selectedLease.endDate).toLocaleDateString('en-US');
-      else if (k === 'RENT_AMOUNT' && selectedLease) vals[k] = `$${selectedLease.monthlyRent.toLocaleString()}`;
-      else if (k === 'DEPOSIT_AMOUNT' && selectedLease) vals[k] = `$${selectedLease.securityDeposit.toLocaleString()}`;
-      else if (k === 'OCCUPANTS' && selectedLease?.occupants) vals[k] = selectedLease.occupants.map(o => o.fullName).join(', ');
+      else if (k === 'PROPERTY_CITY' && selectedProperty) vals[k] = selectedProperty.city;
+      else if (k === 'PROPERTY_STATE' && selectedProperty) vals[k] = selectedProperty.state;
+      else if (k === 'PROPERTY_ZIP' && selectedProperty) vals[k] = selectedProperty.zip;
+      // Lease dates + money
+      else if ((k === 'LEASE_START_DATE' || k === 'START_DATE') && selectedLease) vals[k] = new Date(selectedLease.startDate).toLocaleDateString('en-US');
+      else if ((k === 'LEASE_END_DATE' || k === 'END_DATE') && selectedLease?.endDate) vals[k] = new Date(selectedLease.endDate).toLocaleDateString('en-US');
+      else if ((k === 'RENT_AMOUNT' || k === 'MONTHLY_RENT') && selectedLease) vals[k] = `$${selectedLease.monthlyRent.toLocaleString()}`;
+      else if ((k === 'DEPOSIT_AMOUNT' || k === 'SECURITY_DEPOSIT') && selectedLease) vals[k] = `$${selectedLease.securityDeposit.toLocaleString()}`;
+      else if (k === 'OCCUPANTS' && occupants.length) vals[k] = [selectedTenant?.displayName, ...occupants.map(o => o.fullName)].filter(Boolean).join(', ');
       else if (field.default) vals[k] = field.default;
       else vals[k] = fieldValues[k] || '';
     }

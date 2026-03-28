@@ -11,12 +11,16 @@ import {
   Check,
   Calendar,
   Type,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 import SignaturePad from 'signature_pad';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { ref, getBytes } from 'firebase/storage';
 import { useAuth } from '../../contexts';
 import { portalDocumentService, isFirebaseConfigured } from '../../lib/firebase';
 import { generatedLeaseService } from '../../lib/firebase/firestore';
+import { storage } from '../../lib/firebase/config';
 import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
 import { applySignaturesToPdf } from '../../lib/leaseGenerator';
@@ -34,6 +38,13 @@ function fmtDate(d: Date | string | null | undefined) {
   return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+/** Load PDF bytes from Firebase Storage using SDK (avoids CORS issues with raw fetch) */
+async function loadPdfBytes(storagePath: string): Promise<Uint8Array> {
+  const storageRef = ref(storage, storagePath);
+  const bytes = await getBytes(storageRef);
+  return new Uint8Array(bytes);
+}
+
 /* ─── Component ─── */
 export function TenantLeaseSignPage() {
   const { user, userProfile } = useAuth();
@@ -43,11 +54,16 @@ export function TenantLeaseSignPage() {
   const [lease, setLease] = useState<PortalDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  // Keep original PDF bytes in memory for preview rebuilds + signing
+  const originalPdfBytesRef = useRef<Uint8Array | null>(null);
 
   // Generated lease (structured signing)
   const [genLease, setGenLease] = useState<GeneratedLease | null>(null);
   const [fieldCompletions, setFieldCompletions] = useState<Record<string, LeaseSignatureFieldValue>>({});
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+
+  // DocuSign-style navigation
+  const [currentFieldIndex, setCurrentFieldIndex] = useState(0);
 
   // Signing state
   const [showSignModal, setShowSignModal] = useState(false);
@@ -63,17 +79,25 @@ export function TenantLeaseSignPage() {
   const isStructured = !!genLease?.signatureFields?.length;
 
   /* ─── Compute field completion status ─── */
-  // Only include signing-phase fields for the current tenant.
-  // Exclude move_in_inspection fields (handled separately in move-in flow).
   const tenantFields = (genLease?.signatureFields ?? []).filter((f) => {
     if (f.role !== 'tenant') return false;
-    // Exclude inspection-phase fields
     if (f.phase === 'move_in_inspection') return false;
     return true;
   });
   const requiredTenantFields = tenantFields.filter((f) => f.required !== false);
   const completedCount = requiredTenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
   const allFieldsDone = requiredTenantFields.length > 0 && completedCount === requiredTenantFields.length;
+
+  // Next / prev incomplete for DocuSign-style navigation
+  const nextIncompleteIndex = tenantFields.findIndex(
+    (f, i) => i > currentFieldIndex && !fieldCompletions[f.fieldId]?.value
+  );
+  const prevIncompleteIndex = (() => {
+    for (let i = currentFieldIndex - 1; i >= 0; i--) {
+      if (!fieldCompletions[tenantFields[i]?.fieldId]?.value) return i;
+    }
+    return -1;
+  })();
 
   /* ─── Load lease document ─── */
   useEffect(() => {
@@ -88,32 +112,40 @@ export function TenantLeaseSignPage() {
         const found = docs.find(
           (d) => d.category === 'lease' && d.requiresSignature && d.status !== 'void'
         );
-        if (found) {
-          setLease(found);
-          if (found.originalFilePath) {
-            const url = await getFileUrl(found.originalFilePath);
-            setPdfUrl(url);
-          }
-        }
+        if (found) setLease(found);
 
-        // Also look for a structured GeneratedLease sent for signing
+        // Look for a structured GeneratedLease sent for signing
         const genLeases = await generatedLeaseService.getByTenant(user.uid);
         const sent = genLeases.find(
           (g) => g.signingStatus === 'sent' || g.signingStatus === 'viewed'
         );
+
+        // Determine storage path for PDF
+        const storagePath = sent?.pdfOriginalPath || found?.originalFilePath;
+
+        if (storagePath) {
+          try {
+            // Load PDF bytes via Firebase SDK — bypasses CORS entirely
+            const bytes = await loadPdfBytes(storagePath);
+            originalPdfBytesRef.current = bytes;
+            const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+            setPdfUrl(URL.createObjectURL(blob));
+          } catch (pdfErr) {
+            console.error('Failed to load PDF via SDK, trying download URL:', pdfErr);
+            const path = sent?.pdfOriginalPath || found?.originalFilePath;
+            if (path) {
+              const url = await getFileUrl(path);
+              setPdfUrl(url);
+            }
+          }
+        }
+
         if (sent) {
           setGenLease(sent);
-          // Mark as viewed if just sent
           if (sent.signingStatus === 'sent') {
             await generatedLeaseService.update(sent.id, { signingStatus: 'viewed' });
             setGenLease({ ...sent, signingStatus: 'viewed' });
           }
-          // If the generated lease has its own PDF and we didn't get one from portalDocument
-          if (!found?.originalFilePath && sent.pdfOriginalPath) {
-            const url = await getFileUrl(sent.pdfOriginalPath);
-            setPdfUrl(url);
-          }
-          // Initialize field completions from existing values
           const completions: Record<string, LeaseSignatureFieldValue> = {};
           for (const f of sent.signatureFields ?? []) {
             completions[f.fieldId] = { ...f };
@@ -130,26 +162,24 @@ export function TenantLeaseSignPage() {
     load();
   }, [user]);
 
-  /* ─── Rebuild PDF preview whenever fields are completed ─── */
+  /* ─── Rebuild PDF preview when fields change (live updates) ─── */
   useEffect(() => {
-    if (!pdfUrl || !genLease) return;
+    if (!genLease) return;
     const completed = Object.values(fieldCompletions).filter((f) => f.completedAt && f.value);
-    if (completed.length === 0) {
-      // No completions yet — use original
-      setPreviewPdfUrl(null);
-      return;
-    }
+    if (completed.length === 0) return;
+
+    const origBytes = originalPdfBytesRef.current;
+    if (!origBytes) return;
+
     let cancelled = false;
     (async () => {
       try {
-        const originalBytes = await fetch(pdfUrl).then((r) => r.arrayBuffer());
         const updatedBytes = await applySignaturesToPdf(
-          new Uint8Array(originalBytes),
+          origBytes,
           completed,
           userProfile?.displayName || 'Tenant',
         );
         if (cancelled) return;
-        // Revoke old preview URL to avoid memory leaks
         if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
         const blob = new Blob([updatedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
         setPreviewPdfUrl(URL.createObjectURL(blob));
@@ -159,21 +189,18 @@ export function TenantLeaseSignPage() {
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldCompletions, pdfUrl, genLease]);
+  }, [fieldCompletions, genLease]);
 
-  /* ─── Persist field completions incrementally to Firestore ─── */
+  /* ─── Persist field completions incrementally ─── */
   useEffect(() => {
     if (!genLease) return;
     const completed = Object.values(fieldCompletions).filter((f) => f.completedAt && f.value);
     if (completed.length === 0) return;
-    // Debounce: save 500ms after last change
     const timer = setTimeout(async () => {
       try {
         const updatedFields = (genLease.signatureFields ?? []).map((f) => {
           const c = fieldCompletions[f.fieldId];
-          if (c?.value && c?.completedAt) {
-            return { ...f, value: c.value, completedAt: c.completedAt };
-          }
+          if (c?.value && c?.completedAt) return { ...f, value: c.value, completedAt: c.completedAt };
           return f;
         });
         await generatedLeaseService.update(genLease.id, { signatureFields: updatedFields });
@@ -185,7 +212,7 @@ export function TenantLeaseSignPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldCompletions]);
 
-  /* ─── Init signature pad when modal opens ─── */
+  /* ─── Init signature pad ─── */
   const initSigPad = useCallback(() => {
     if (canvasRef.current && !sigPadRef.current) {
       const canvas = canvasRef.current;
@@ -205,9 +232,7 @@ export function TenantLeaseSignPage() {
       const t = setTimeout(initSigPad, 100);
       return () => clearTimeout(t);
     }
-    return () => {
-      sigPadRef.current = null;
-    };
+    return () => { sigPadRef.current = null; };
   }, [showSignModal, signMode, initSigPad]);
 
   /* ─── Build signature image ─── */
@@ -240,18 +265,27 @@ export function TenantLeaseSignPage() {
     }
   }
 
-  /* ─── Complete a single structured field (open sig modal for signature fields) ─── */
+  /* ─── Auto-advance to next incomplete field after completing one ─── */
+  function autoAdvance() {
+    setTimeout(() => {
+      const idx = tenantFields.findIndex(
+        (f, i) => i > currentFieldIndex && !fieldCompletions[f.fieldId]?.value
+      );
+      if (idx >= 0) setCurrentFieldIndex(idx);
+    }, 200);
+  }
+
+  /* ─── Complete a single structured field ─── */
   function handleFieldClick(fieldId: string) {
     const field = fieldCompletions[fieldId];
     if (!field) return;
     if (field.type === 'date') {
-      // Auto-fill today's date
       setFieldCompletions((prev) => ({
         ...prev,
         [fieldId]: { ...prev[fieldId], value: new Date().toLocaleDateString('en-US'), completedAt: new Date() },
       }));
+      autoAdvance();
     } else if (field.type === 'initial') {
-      // Auto-fill initials from display name
       const initials = (userProfile?.displayName || '')
         .split(' ')
         .map((w) => w[0]?.toUpperCase() || '')
@@ -260,14 +294,14 @@ export function TenantLeaseSignPage() {
         ...prev,
         [fieldId]: { ...prev[fieldId], value: initials || 'N/A', completedAt: new Date() },
       }));
+      autoAdvance();
     } else {
-      // Signature — open modal for this field
       setActiveFieldId(fieldId);
       setShowSignModal(true);
     }
   }
 
-  /* ─── Apply drawn/typed signature to active field ─── */
+  /* ─── Apply signature to active field ─── */
   async function handleApplyFieldSignature() {
     if (!activeFieldId) return;
     setSignError(null);
@@ -297,51 +331,33 @@ export function TenantLeaseSignPage() {
     setShowSignModal(false);
     setActiveFieldId(null);
     sigPadRef.current?.clear();
+    autoAdvance();
   }
 
   /* ─── Submit all structured fields (final signing) ─── */
   async function handleStructuredSign() {
-    if (!consent) {
-      setSignError('You must agree to the e-sign consent.');
-      return;
-    }
-    if (!allFieldsDone) {
-      setSignError('Please complete all required fields before signing.');
-      return;
-    }
+    if (!consent) { setSignError('You must agree to the e-sign consent.'); return; }
+    if (!allFieldsDone) { setSignError('Please complete all required fields before signing.'); return; }
     setSignError(null);
     setSigning(true);
 
     try {
-      if (!pdfUrl || !genLease || !user) throw new Error('Missing lease data.');
+      if (!genLease || !user) throw new Error('Missing lease data.');
+      const origBytes = originalPdfBytesRef.current;
+      if (!origBytes) throw new Error('Original PDF not loaded. Please reload the page.');
 
-      // Fetch original PDF
-      const pdfBytes = await fetch(pdfUrl).then((r) => r.arrayBuffer());
-
-      // Build completed fields array — only signing-phase tenant_1 fields
       const signingFieldIds = new Set(tenantFields.map((f) => f.fieldId));
       const completedFields: LeaseSignatureFieldValue[] = Object.values(fieldCompletions).filter(
         (f) => signingFieldIds.has(f.fieldId) && f.value
       );
 
-      // Apply signatures/dates/initials to the PDF at exact coordinates
-      const signedPdfBytes = await applySignaturesToPdf(
-        new Uint8Array(pdfBytes),
-        completedFields,
-        userProfile?.displayName || 'Tenant'
-      );
+      const signedPdfBytes = await applySignaturesToPdf(origBytes, completedFields, userProfile?.displayName || 'Tenant');
 
-      // Upload signed PDF
       const signedPath = `generated-leases/${genLease.leaseId}/signed_${Date.now()}.pdf`;
-      await uploadFile(
-        signedPath,
-        new File([signedPdfBytes.buffer as ArrayBuffer], 'signed_lease.pdf', { type: 'application/pdf' })
-      );
+      await uploadFile(signedPath, new File([signedPdfBytes.buffer as ArrayBuffer], 'signed_lease.pdf', { type: 'application/pdf' }));
 
-      // Compute hash
       const sigHash = await sha256Hex(signedPdfBytes);
 
-      // Update generated lease record — only update signing-phase fields
       const updatedFields = (genLease.signatureFields ?? []).map((f) => {
         const completed = fieldCompletions[f.fieldId];
         if (completed?.value && signingFieldIds.has(f.fieldId)) {
@@ -357,7 +373,6 @@ export function TenantLeaseSignPage() {
         signatureFields: updatedFields,
       });
 
-      // Update portal document if it exists
       if (lease) {
         await portalDocumentService.update(lease.id, {
           status: 'signed',
@@ -374,7 +389,6 @@ export function TenantLeaseSignPage() {
 
       setSignSuccess(true);
 
-      // Notify admin
       createAdminAlert({
         type: 'general',
         title: 'Lease Signed',
@@ -383,7 +397,6 @@ export function TenantLeaseSignPage() {
         relatedType: 'lease',
       });
 
-      // Download signed copy
       const blob = new Blob([signedPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -399,77 +412,48 @@ export function TenantLeaseSignPage() {
     }
   }
 
-  /* ─── Legacy sign and stamp PDF ─── */
+  /* ─── Legacy sign (non-structured) ─── */
   async function handleLegacySign() {
-    if (!consent) {
-      setSignError('You must agree to the e-sign consent.');
-      return;
-    }
+    if (!consent) { setSignError('You must agree to the e-sign consent.'); return; }
     setSignError(null);
     setSigning(true);
 
     try {
       const sigImage = await getSignatureImage();
       if (!sigImage) { setSigning(false); return; }
-
       const sigHash = await sha256Hex(sigImage);
 
-      let signedPdfBytes: Uint8Array;
-      if (pdfUrl) {
-        const pdfBytes = await fetch(pdfUrl).then(r => r.arrayBuffer());
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const pngImage = await pdfDoc.embedPng(sigImage);
-        const pages = pdfDoc.getPages();
-        const lastPage = pages[pages.length - 1];
-        const { width: pgW } = lastPage.getSize();
+      const origBytes = originalPdfBytesRef.current;
+      if (!origBytes) throw new Error('Original lease file is missing.');
 
-        const sigW = 200;
-        const sigH = (pngImage.height / pngImage.width) * sigW;
-        lastPage.drawImage(pngImage, {
-          x: pgW - sigW - 60,
-          y: 60,
-          width: sigW,
-          height: sigH,
-        });
+      const pdfDoc = await PDFDocument.load(origBytes);
+      const pngImage = await pdfDoc.embedPng(sigImage);
+      const pages = pdfDoc.getPages();
+      const lastPage = pages[pages.length - 1];
+      const { width: pgW } = lastPage.getSize();
 
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const ts = new Date().toISOString();
-        lastPage.drawText(
-          `E-signed by ${userProfile?.displayName || 'Tenant'} on ${ts}`,
-          { x: 40, y: 40, size: 8, font, color: rgb(0.4, 0.4, 0.4) }
-        );
-        lastPage.drawText(
-          `SHA-256: ${sigHash.slice(0, 32)}…`,
-          { x: 40, y: 28, size: 7, font, color: rgb(0.6, 0.6, 0.6) }
-        );
+      const sigW = 200;
+      const sigH = (pngImage.height / pngImage.width) * sigW;
+      lastPage.drawImage(pngImage, { x: pgW - sigW - 60, y: 60, width: sigW, height: sigH });
 
-        signedPdfBytes = await pdfDoc.save();
-      } else {
-        throw new Error('Original lease file is missing.');
-      }
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const ts = new Date().toISOString();
+      lastPage.drawText(`E-signed by ${userProfile?.displayName || 'Tenant'} on ${ts}`, { x: 40, y: 40, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
+      lastPage.drawText(`SHA-256: ${sigHash.slice(0, 32)}…`, { x: 40, y: 28, size: 7, font, color: rgb(0.6, 0.6, 0.6) });
+
+      const signedPdfBytes = await pdfDoc.save();
 
       if (isFirebaseConfigured && user && lease) {
         const signedPath = `documents/${user.uid}/lease/signed_${Date.now()}.pdf`;
-        await uploadFile(signedPath, new File([signedPdfBytes.buffer as ArrayBuffer], 'signed_lease.pdf', { type: 'application/pdf' }));
-
-        await portalDocumentService.update(lease.id, {
-          status: 'signed',
-          signedFilePath: signedPath,
-          signatureHash: sigHash,
-        });
-
-        await portalDocumentService.addEvent(lease.id, {
-          type: 'signed',
-          actorUid: user.uid,
-          timestamp: new Date(),
-          metadata: { method: signMode, hash: sigHash } as Record<string, string>,
-        });
+        await uploadFile(signedPath, new File([signedPdfBytes as BlobPart], 'signed_lease.pdf', { type: 'application/pdf' }));
+        await portalDocumentService.update(lease.id, { status: 'signed', signedFilePath: signedPath, signatureHash: sigHash });
+        await portalDocumentService.addEvent(lease.id, { type: 'signed', actorUid: user.uid, timestamp: new Date(), metadata: { method: signMode, hash: sigHash } as Record<string, string> });
       }
 
       setSignSuccess(true);
       setShowSignModal(false);
 
-      const blob = new Blob([signedPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const blob = new Blob([signedPdfBytes as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -478,7 +462,7 @@ export function TenantLeaseSignPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Signing error:', err);
-      setSignError('Signing failed. Please try again.');
+      setSignError(err instanceof Error ? err.message : 'Signing failed. Please try again.');
     } finally {
       setSigning(false);
     }
@@ -521,145 +505,193 @@ export function TenantLeaseSignPage() {
           <p>Your property manager hasn't uploaded a lease yet.</p>
         </div>
       ) : (
-        <div className="lease-card">
-          <div className="lease-card-header">
-            <div className="lease-file-info">
-              <FileText size={24} className="icon-pdf" />
-              <div>
-                <h3>{lease?.fileName || 'Generated Lease'}</h3>
-                <span className="lease-meta">
-                  {genLease ? `Generated lease v${genLease.templateVersion}` : `Uploaded ${fmtDate(lease!.createdAt)}`}
-                </span>
+        <>
+          {/* ─── DocuSign-style progress bar ─── */}
+          {isStructured && !signSuccess && (genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent') && (
+            <div className="ds-progress-bar">
+              <div className="ds-progress-info">
+                <Pen size={16} />
+                <span><strong>{completedCount}</strong> of <strong>{requiredTenantFields.length}</strong> required fields completed</span>
               </div>
-            </div>
-            <div className="lease-status">
-              {(lease?.status === 'signed' || genLease?.signingStatus === 'signed' || signSuccess) ? (
-                <span className="badge badge-success"><CheckCircle size={14} /> Signed</span>
-              ) : genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent' ? (
-                <span className="badge badge-warning"><AlertCircle size={14} /> Awaiting Signature</span>
-              ) : lease?.status === 'pending_signature' ? (
-                <span className="badge badge-warning"><AlertCircle size={14} /> Awaiting Signature</span>
-              ) : (
-                <span className="badge badge-info">{lease?.status || genLease?.signingStatus}</span>
+              <div className="ds-progress-track">
+                <div
+                  className="ds-progress-fill"
+                  style={{ width: requiredTenantFields.length ? `${(completedCount / requiredTenantFields.length) * 100}%` : '0%' }}
+                />
+              </div>
+              {allFieldsDone && (
+                <span className="ds-progress-ready"><CheckCircle size={14} /> Ready to submit</span>
               )}
-            </div>
-          </div>
-
-          {/* PDF preview */}
-          {(previewPdfUrl || pdfUrl) && (
-            <div className="pdf-preview">
-              <iframe src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
             </div>
           )}
 
-          {/* ─── Structured field signing UI ─── */}
-          {isStructured && !signSuccess && (genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent') && (
-            <div className="structured-signing" style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
-              <h3 style={{ marginBottom: '1rem' }}>
-                <Pen size={18} /> Complete Required Fields ({completedCount}/{tenantFields.length})
-              </h3>
+          <div className={`ds-layout ${isStructured && !signSuccess && (genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent') ? 'ds-layout-split' : ''}`}>
+            {/* ─── PDF Preview Panel ─── */}
+            <div className="ds-pdf-panel">
+              <div className="lease-card">
+                <div className="lease-card-header">
+                  <div className="lease-file-info">
+                    <FileText size={24} className="icon-pdf" />
+                    <div>
+                      <h3>{lease?.fileName || 'Generated Lease'}</h3>
+                      <span className="lease-meta">
+                        {genLease ? `Generated lease v${genLease.templateVersion}` : `Uploaded ${fmtDate(lease!.createdAt)}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="lease-status">
+                    {(lease?.status === 'signed' || genLease?.signingStatus === 'signed' || signSuccess) ? (
+                      <span className="badge badge-success"><CheckCircle size={14} /> Signed</span>
+                    ) : genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent' ? (
+                      <span className="badge badge-warning"><AlertCircle size={14} /> Awaiting Signature</span>
+                    ) : lease?.status === 'pending_signature' ? (
+                      <span className="badge badge-warning"><AlertCircle size={14} /> Awaiting Signature</span>
+                    ) : (
+                      <span className="badge badge-info">{lease?.status || genLease?.signingStatus}</span>
+                    )}
+                  </div>
+                </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {tenantFields.map((f) => {
-                  const comp = fieldCompletions[f.fieldId];
-                  const isDone = !!comp?.value;
-                  return (
-                    <div
-                      key={f.fieldId}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        padding: '0.75rem 1rem',
-                        border: `2px solid ${isDone ? 'var(--success-color, #22c55e)' : 'var(--warning-color, #f59e0b)'}`,
-                        borderRadius: '8px',
-                        background: isDone ? 'rgba(34,197,94,0.05)' : 'rgba(245,158,11,0.05)',
-                        cursor: isDone ? 'default' : 'pointer',
-                      }}
-                      onClick={() => !isDone && handleFieldClick(f.fieldId)}
-                    >
-                      <div style={{ flex: '0 0 32px', textAlign: 'center' }}>
-                        {isDone ? (
-                          <Check size={20} style={{ color: 'var(--success-color, #22c55e)' }} />
-                        ) : f.type === 'signature' ? (
-                          <Pen size={20} style={{ color: 'var(--warning-color, #f59e0b)' }} />
-                        ) : f.type === 'date' ? (
-                          <Calendar size={20} style={{ color: 'var(--warning-color, #f59e0b)' }} />
-                        ) : (
-                          <Type size={20} style={{ color: 'var(--warning-color, #f59e0b)' }} />
+                {(previewPdfUrl || pdfUrl) && (
+                  <div className="pdf-preview">
+                    <iframe src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
+                  </div>
+                )}
+
+                <div className="lease-card-actions">
+                  {pdfUrl && (
+                    <a href={previewPdfUrl || pdfUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
+                      <Download size={16} /> Download Original
+                    </a>
+                  )}
+                  {!isStructured && (lease?.status === 'pending_signature' && !signSuccess) && (
+                    <button className="btn btn-primary" onClick={() => setShowSignModal(true)}>
+                      <Pen size={16} /> Sign Lease
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ─── DocuSign-style signing sidebar ─── */}
+            {isStructured && !signSuccess && (genLease?.signingStatus === 'viewed' || genLease?.signingStatus === 'sent') && (
+              <div className="ds-signing-panel">
+                <div className="ds-panel-header">
+                  <h3><Pen size={18} /> Sign Your Lease</h3>
+                  <p>Complete each field below. Click a field to sign, initial, or date it.</p>
+                </div>
+
+                {/* Field list */}
+                <div className="ds-field-list">
+                  {tenantFields.map((f, i) => {
+                    const comp = fieldCompletions[f.fieldId];
+                    const isDone = !!comp?.value;
+                    const isCurrent = i === currentFieldIndex;
+                    return (
+                      <div
+                        key={f.fieldId}
+                        className={`ds-field-item ${isDone ? 'ds-field-done' : 'ds-field-pending'} ${isCurrent ? 'ds-field-active' : ''}`}
+                        onClick={() => {
+                          setCurrentFieldIndex(i);
+                          if (!isDone) handleFieldClick(f.fieldId);
+                        }}
+                      >
+                        <div className="ds-field-icon">
+                          {isDone ? (
+                            <Check size={18} />
+                          ) : f.type === 'signature' ? (
+                            <Pen size={18} />
+                          ) : f.type === 'date' ? (
+                            <Calendar size={18} />
+                          ) : (
+                            <Type size={18} />
+                          )}
+                        </div>
+                        <div className="ds-field-info">
+                          <span className="ds-field-label">{f.displayLabel || f.fieldId}</span>
+                          <span className="ds-field-hint">
+                            {isDone
+                              ? f.type === 'signature' ? '✓ Signed' : `✓ ${comp?.value}`
+                              : f.type === 'signature' ? 'Tap to sign'
+                              : f.type === 'date' ? 'Tap to apply date'
+                              : 'Tap to initial'}
+                          </span>
+                        </div>
+                        {isDone && (
+                          <button
+                            className="ds-field-redo"
+                            title="Redo this field"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFieldCompletions((prev) => {
+                                const copy = { ...prev };
+                                copy[f.fieldId] = { ...copy[f.fieldId], value: undefined as any, completedAt: undefined as any };
+                                return copy;
+                              });
+                            }}
+                          >
+                            ↺
+                          </button>
                         )}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <strong>{f.displayLabel || f.fieldId}</strong>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)' }}>
-                          {isDone
-                            ? f.type === 'signature' ? 'Signature captured' : `Completed: ${comp?.value}`
-                            : f.type === 'signature' ? 'Click to sign' : f.type === 'date' ? 'Click to apply today\'s date' : 'Click to add initials'
-                          }
-                        </div>
-                      </div>
-                      {!isDone && (
-                        <button
-                          className="btn btn-outline"
-                          style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
-                          onClick={(e) => { e.stopPropagation(); handleFieldClick(f.fieldId); }}
-                        >
-                          Complete
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {signError && (
-                <div className="alert alert-error" style={{ marginTop: '1rem' }}>
-                  <AlertCircle size={14} /> {signError}
+                    );
+                  })}
                 </div>
-              )}
 
-              {/* Consent + final submit */}
-              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color, #e2e8f0)', paddingTop: '1rem' }}>
-                <label className="consent-label">
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                  />
-                  <Shield size={14} />
-                  <span>
-                    I agree to use an electronic signature. I understand this has the same legal effect as a handwritten signature.
-                  </span>
-                </label>
-                <button
-                  className="btn btn-primary"
-                  style={{ marginTop: '1rem', width: '100%' }}
-                  disabled={signing || !consent || !allFieldsDone}
-                  onClick={handleStructuredSign}
-                >
-                  {signing ? <><Loader2 size={16} className="spinner" /> Signing…</> : <>Submit Signed Lease &amp; Download</>}
-                </button>
+                {/* Prev / Next navigation */}
+                <div className="ds-nav-buttons">
+                  <button
+                    className="btn btn-outline btn-sm"
+                    disabled={prevIncompleteIndex < 0}
+                    onClick={() => { if (prevIncompleteIndex >= 0) setCurrentFieldIndex(prevIncompleteIndex); }}
+                  >
+                    <ChevronLeft size={16} /> Prev
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={nextIncompleteIndex < 0}
+                    onClick={() => {
+                      if (nextIncompleteIndex >= 0) {
+                        setCurrentFieldIndex(nextIncompleteIndex);
+                        handleFieldClick(tenantFields[nextIncompleteIndex].fieldId);
+                      }
+                    }}
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {signError && (
+                  <div className="alert alert-error" style={{ margin: '0.75rem 0 0' }}>
+                    <AlertCircle size={14} /> {signError}
+                  </div>
+                )}
+
+                {/* Consent + final submit */}
+                <div className="ds-submit-section">
+                  <label className="consent-label">
+                    <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                    <Shield size={14} />
+                    <span>I agree to use an electronic signature with the same legal effect as a handwritten signature.</span>
+                  </label>
+                  <button
+                    className="btn btn-primary ds-submit-btn"
+                    disabled={signing || !consent || !allFieldsDone}
+                    onClick={handleStructuredSign}
+                  >
+                    {signing ? <><Loader2 size={16} className="spinner" /> Signing…</> : <><CheckCircle size={16} /> Submit Signed Lease</>}
+                  </button>
+                  {!allFieldsDone && consent && (
+                    <p className="ds-submit-hint">{requiredTenantFields.length - completedCount} field(s) remaining</p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-
-          <div className="lease-card-actions">
-            {pdfUrl && (
-              <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                <Download size={16} /> Download Original
-              </a>
-            )}
-            {/* Legacy sign button: only when no structured signing */}
-            {!isStructured && (lease?.status === 'pending_signature' && !signSuccess) && (
-              <button className="btn btn-primary" onClick={() => setShowSignModal(true)}>
-                <Pen size={16} /> Sign Lease
-              </button>
             )}
           </div>
-        </div>
+        </>
       )}
 
-      {/* ─── Signing Modal (used for legacy full signing AND structured per-field signatures) ─── */}
+      {/* ─── Signing Modal ─── */}
       {showSignModal && (
         <div className="modal-overlay" onClick={() => { setShowSignModal(false); setActiveFieldId(null); }}>
           <div className="sign-modal" onClick={(e) => e.stopPropagation()}>
@@ -675,7 +707,6 @@ export function TenantLeaseSignPage() {
                 </div>
               )}
 
-              {/* Mode tabs */}
               <div className="sign-tabs">
                 <button className={signMode === 'draw' ? 'active' : ''} onClick={() => setSignMode('draw')}>
                   <Pen size={16} /> Draw
@@ -692,30 +723,16 @@ export function TenantLeaseSignPage() {
                 </div>
               ) : (
                 <div className="sig-type">
-                  <input
-                    type="text"
-                    placeholder="Type your full legal name"
-                    value={typedName}
-                    onChange={(e) => setTypedName(e.target.value)}
-                  />
-                  {typedName && (
-                    <div className="sig-preview">{typedName}</div>
-                  )}
+                  <input type="text" placeholder="Type your full legal name" value={typedName} onChange={(e) => setTypedName(e.target.value)} />
+                  {typedName && <div className="sig-preview">{typedName}</div>}
                 </div>
               )}
 
-              {/* Consent (only for legacy full signing, not per-field) */}
               {!activeFieldId && (
                 <label className="consent-label">
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
                   <Shield size={14} />
-                  <span>
-                    I agree to use an electronic signature. I understand this has the same legal effect as a handwritten signature.
-                  </span>
+                  <span>I agree to use an electronic signature. I understand this has the same legal effect as a handwritten signature.</span>
                 </label>
               )}
             </div>
@@ -729,9 +746,7 @@ export function TenantLeaseSignPage() {
               >
                 {signing
                   ? <><Loader2 size={16} className="spinner" /> Signing…</>
-                  : activeFieldId
-                    ? <>Apply Signature</>
-                    : <>Sign &amp; Download</>
+                  : activeFieldId ? <>Apply Signature</> : <>Sign &amp; Download</>
                 }
               </button>
             </div>
