@@ -338,6 +338,88 @@ export async function commitWrites(projectId, writes, idToken) {
   return await response.json();
 }
 
+// ─── Service Account Auth ──────────────────────────────────
+
+/**
+ * Obtain a Google OAuth2 access token using a service account (JWT → token exchange).
+ * Compatible with Cloudflare Workers runtime (uses Web Crypto API).
+ *
+ * Expects env.FIREBASE_SERVICE_ACCOUNT_JSON — a JSON string containing
+ * the service account key file with at least:
+ *   { client_email, private_key, token_uri }
+ *
+ * Tokens are scoped to Firestore/Datastore.
+ */
+
+// Base64url encode
+function base64url(input) {
+  const str = typeof input === 'string' ? input : new TextDecoder().decode(input);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Import PEM private key as CryptoKey for RS256 signing
+async function importPrivateKey(pem) {
+  const pemBody = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  const binaryDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+
+  return crypto.subtle.importKey(
+    'pkcs8',
+    binaryDer.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+}
+
+/**
+ * Generate a Google OAuth2 access token from a service account key.
+ * @param {object} env - Cloudflare environment bindings. Must contain FIREBASE_SERVICE_ACCOUNT_JSON.
+ * @returns {Promise<string>} Google OAuth2 access token.
+ */
+export async function getServiceAccessToken(env) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
+  }
+
+  const sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const iss = sa.client_email;
+  const scope = 'https://www.googleapis.com/auth/datastore';
+  const aud = sa.token_uri || 'https://oauth2.googleapis.com/token';
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+
+  // Build JWT
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claimSet = base64url(JSON.stringify({ iss, scope, aud, iat, exp }));
+  const unsignedToken = `${header}.${claimSet}`;
+
+  const key = await importPrivateKey(sa.private_key);
+  const sigBuffer = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsignedToken));
+  const signature = base64url(new Uint8Array(sigBuffer));
+  const jwt = `${unsignedToken}.${signature}`;
+
+  // Exchange JWT for access token
+  const tokenRes = await fetch(aud, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  });
+
+  if (!tokenRes.ok) {
+    const errText = await tokenRes.text();
+    throw new Error(`Service account token exchange failed: ${errText}`);
+  }
+
+  const tokenData = await tokenRes.json();
+  return tokenData.access_token;
+}
+
 export {
   toFirestoreValue,
   fromFirestoreValue,

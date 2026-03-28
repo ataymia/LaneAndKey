@@ -26,6 +26,7 @@ import {
   getSubcollection,
   documentExists,
 } from '../lib/firestore-rest.js';
+import { getServiceAccessToken } from '../lib/firestore-rest.js';
 
 // Stripe API base URL
 const STRIPE_API_URL = 'https://api.stripe.com/v1';
@@ -145,7 +146,7 @@ async function markEventProcessed(eventId, env) {
  * 
  * Writes a ledger entry and recomputes statement balance
  */
-async function handleCheckoutCompleted(session, env) {
+async function handleCheckoutCompleted(session, env, accessToken) {
   const projectId = env.FIREBASE_PROJECT_ID;
   if (!projectId) {
     console.error('FIREBASE_PROJECT_ID not set, cannot write to Firestore');
@@ -180,7 +181,8 @@ async function handleCheckoutCompleted(session, env) {
     const exists = await documentExists(
       projectId,
       `rentStatements/${statementId}/ledger`,
-      entryId
+      entryId,
+      accessToken
     );
 
     if (!exists) {
@@ -199,14 +201,16 @@ async function handleCheckoutCompleted(session, env) {
           stripeSessionId: session.id,
           createdByUid: tenantUid || 'system',
           createdAt: now,
-        }
+        },
+        accessToken
       );
 
       // Recompute balance
       const allEntries = await getSubcollection(
         projectId,
         `rentStatements/${statementId}`,
-        'ledger'
+        'ledger',
+        accessToken
       );
       const newBalance = allEntries.reduce((sum, e) => sum + (e.amountCents || 0), 0);
 
@@ -219,7 +223,7 @@ async function handleCheckoutCompleted(session, env) {
         updateData.paidAt = now;
       }
 
-      await updateDocument(projectId, 'rentStatements', statementId, updateData);
+      await updateDocument(projectId, 'rentStatements', statementId, updateData, accessToken);
       console.log(`Statement ${statementId} updated: balance=${newBalance}`);
     } else {
       console.log(`Ledger entry ${entryId} already exists, skipping (idempotent)`);
@@ -234,7 +238,7 @@ async function handleCheckoutCompleted(session, env) {
         paidAt: now,
         stripeSessionId: session.id,
         stripePaymentIntentId: paymentIntentId,
-      });
+      }, accessToken);
       console.log(`Invoice ${invoiceId} marked as paid`);
     } catch (err) {
       console.error('Failed to update invoice:', err);
@@ -244,7 +248,7 @@ async function handleCheckoutCompleted(session, env) {
   // 3. Create a payment record (always, for audit trail)
   const paymentDocId = `stripe_${paymentIntentId}`;
   try {
-    const exists = await documentExists(projectId, 'payments', paymentDocId);
+    const exists = await documentExists(projectId, 'payments', paymentDocId, accessToken);
     if (!exists) {
       await setDocument(projectId, 'payments', paymentDocId, {
         tenantUid: tenantUid || '',
@@ -265,7 +269,7 @@ async function handleCheckoutCompleted(session, env) {
         stripeEventId: session.id,
         createdAt: now,
         updatedAt: now,
-      });
+      }, accessToken);
       console.log(`Payment record ${paymentDocId} created`);
     }
   } catch (err) {
@@ -287,7 +291,7 @@ async function handleCheckoutCompleted(session, env) {
         read: false,
         archived: false,
         createdAt: now,
-      });
+      }, accessToken);
     } catch (err) {
       console.error('Failed to create payment alert:', err);
     }
@@ -308,7 +312,7 @@ async function handlePaymentSucceeded(paymentIntent, env) {
 /**
  * Process payment_intent.payment_failed event
  */
-async function handlePaymentFailed(paymentIntent, env) {
+async function handlePaymentFailed(paymentIntent, env, accessToken) {
   const projectId = env.FIREBASE_PROJECT_ID;
   console.log('Processing payment_intent.payment_failed:', paymentIntent.id);
   
@@ -339,7 +343,7 @@ async function handlePaymentFailed(paymentIntent, env) {
         stripePaymentIntentId: paymentIntent.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
+      }, accessToken);
     } catch (err) {
       console.error('Failed to record failed payment:', err);
     }
@@ -356,7 +360,7 @@ async function handlePaymentFailed(paymentIntent, env) {
           read: false,
           archived: false,
           createdAt: new Date().toISOString(),
-        });
+        }, accessToken);
       } catch (alertErr) {
         console.error('Failed to create payment-failed alert:', alertErr);
       }
@@ -405,10 +409,20 @@ export async function onRequestPost(context) {
     }
     
     let result = { success: true, action: 'ignored' };
+
+    // Obtain service account access token for Firestore writes.
+    // The webhook is server-to-server (no user auth), so we use a service account.
+    let accessToken = null;
+    try {
+      accessToken = await getServiceAccessToken(env);
+    } catch (tokenErr) {
+      console.error('Failed to get service account token:', tokenErr.message);
+      // Continue — calls without token will fail at Firestore rules, but we still ACK the webhook
+    }
     
     switch (event.type) {
       case 'checkout.session.completed':
-        result = await handleCheckoutCompleted(event.data.object, env);
+        result = await handleCheckoutCompleted(event.data.object, env, accessToken);
         break;
         
       case 'payment_intent.succeeded':
@@ -416,7 +430,7 @@ export async function onRequestPost(context) {
         break;
         
       case 'payment_intent.payment_failed':
-        result = await handlePaymentFailed(event.data.object, env);
+        result = await handlePaymentFailed(event.data.object, env, accessToken);
         break;
         
       case 'charge.succeeded':

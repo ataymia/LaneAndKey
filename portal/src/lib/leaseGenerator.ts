@@ -144,6 +144,12 @@ function parseTemplate(body: string, signatureSchema: SignatureFieldDef[]): Layo
   // Convert <h1>-<h6> to heading blocks, <p>/<div>/<br> to paragraph breaks
   let html = body;
 
+  // Remove <head>...</head>, <style>...</style>, <script>...</script> blocks
+  // BEFORE stripping tags — otherwise their text content leaks into the PDF
+  html = html.replace(/<head[\s>][\s\S]*?<\/head>/gi, '');
+  html = html.replace(/<style[\s>][\s\S]*?<\/style>/gi, '');
+  html = html.replace(/<script[\s>][\s\S]*?<\/script>/gi, '');
+
   // Normalize line breaks
   html = html.replace(/<br\s*\/?>/gi, '\n');
   html = html.replace(/<\/p>/gi, '\n\n');
@@ -453,10 +459,20 @@ export async function applySignaturesToPdf(
     if (pageIndex < 0 || pageIndex >= pages.length) continue;
     const pg = pages[pageIndex];
 
-    if (field.type === 'signature' && field.signedImagePath) {
-      // The signedImagePath will be a data URL or bytes — handled by caller
-      // For typed signatures, render text in italic
-      if (field.value) {
+    if (field.type === 'signature') {
+      // field.value is a data URL (data:image/png;base64,...) from the signature pad
+      if (field.value && field.value.startsWith('data:image/png')) {
+        try {
+          const base64 = field.value.split(',')[1];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          await embedSignatureImage(pdfDoc, pageIndex, field, bytes);
+        } catch (e) {
+          console.error('Failed to embed signature image:', e);
+        }
+      } else if (field.value) {
+        // Fallback for typed signatures — render text in italic
         pg.drawText(sanitizeForWinAnsi(field.value), {
           x: field.x + 4,
           y: field.y + field.height / 2 - 6,
@@ -554,8 +570,11 @@ export function buildFieldSchemaFromPlaceholders(
     else if (key.includes('AMOUNT') || key.includes('RENT') || key.includes('DEPOSIT') || key.includes('FEE')) type = 'money';
     else if (key.includes('OCCUPANTS') || key.includes('PETS') || key.includes('UTILITIES')) type = 'list';
 
+    // Optional tenants: TENANT_2/3/4 placeholders are not required
+    const isOptionalTenant = /^TENANT_[2-4]/.test(key);
+
     const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    return { key, label, type, required: true };
+    return { key, label, type, required: !isOptionalTenant };
   });
 }
 

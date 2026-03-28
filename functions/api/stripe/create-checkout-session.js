@@ -150,7 +150,7 @@ export async function onRequestPost(context) {
 
     // ─── Statement-based rent payment ──────────────────────
     if (statementId && type === 'rent') {
-      const statement = await getDocument(projectId, 'rentStatements', statementId);
+      const statement = await getDocument(projectId, 'rentStatements', statementId, idToken);
       
       if (!statement) {
         return new Response(JSON.stringify({ error: 'Statement not found' }), {

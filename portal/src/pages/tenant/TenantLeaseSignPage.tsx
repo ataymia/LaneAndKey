@@ -70,8 +70,9 @@ export function TenantLeaseSignPage() {
     if (f.phase === 'move_in_inspection') return false;
     return true;
   });
-  const completedCount = tenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
-  const allFieldsDone = tenantFields.length > 0 && completedCount === tenantFields.length;
+  const requiredTenantFields = tenantFields.filter((f) => f.required !== false);
+  const completedCount = requiredTenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
+  const allFieldsDone = requiredTenantFields.length > 0 && completedCount === requiredTenantFields.length;
 
   /* ─── Load lease document ─── */
   useEffect(() => {
