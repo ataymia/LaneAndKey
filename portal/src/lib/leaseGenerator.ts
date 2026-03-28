@@ -112,8 +112,10 @@ export function substitutePlaceholders(
   templateBody: string,
   values: Record<string, string>,
 ): string {
-  return templateBody.replace(PLACEHOLDER_REGEX, (match, key: string) => {
-    return values[key] !== undefined ? values[key] : match;
+  return templateBody.replace(PLACEHOLDER_REGEX, (_match, key: string) => {
+    // If the value is present, use it; otherwise replace with empty string
+    // so that no raw {{PLACEHOLDER}} text appears in the output.
+    return values[key] !== undefined ? values[key] : '';
   });
 }
 

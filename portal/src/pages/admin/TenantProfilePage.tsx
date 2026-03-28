@@ -9,19 +9,21 @@ import {
 import { useAuth } from '../../contexts';
 import {
   userService, leaseService, propertyService, maintenanceService,
-  alertService, activityLogService,
+  alertService, activityLogService, inspectionService,
 } from '../../lib/firebase/firestore';
 import { rentStatementService, ledgerService, portalDocumentService } from '../../lib/firebase/rentStatements';
 import { paymentService } from '../../lib/firebase/firestore';
 import { uploadLeaseDocument } from '../../lib/firebase/storage';
 import { assignLease, editLease, addStatementEntry } from '../../lib/api/portalApi';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import type {
   UserProfile, Property, Lease, RentStatement, LedgerEntry, Payment,
   MaintenanceTicket, Alert, PortalDocument, ActivityLog, LeaseOccupant,
+  MoveInInspection,
 } from '../../types';
 import './TenantProfile.css';
 
-type Tab = 'lease' | 'statements' | 'payments' | 'documents' | 'maintenance' | 'notices' | 'activity';
+type Tab = 'lease' | 'statements' | 'payments' | 'documents' | 'maintenance' | 'inspection' | 'notices' | 'activity';
 
 const TAB_LABELS: Record<Tab, { label: string; icon: React.ReactNode }> = {
   lease: { label: 'Lease & Property', icon: <Home size={16} /> },
@@ -29,6 +31,7 @@ const TAB_LABELS: Record<Tab, { label: string; icon: React.ReactNode }> = {
   payments: { label: 'Payments', icon: <CreditCard size={16} /> },
   documents: { label: 'Documents', icon: <FileText size={16} /> },
   maintenance: { label: 'Maintenance', icon: <Wrench size={16} /> },
+  inspection: { label: 'Inspection', icon: <CheckCircle size={16} /> },
   notices: { label: 'Notices', icon: <Bell size={16} /> },
   activity: { label: 'Activity', icon: <Clock size={16} /> },
 };
@@ -52,6 +55,7 @@ export function TenantProfilePage() {
   const [tickets, setTickets] = useState<MaintenanceTicket[]>([]);
   const [notices, setNotices] = useState<Alert[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
+  const [inspections, setInspections] = useState<MoveInInspection[]>([]);
   const [allLeases, setAllLeases] = useState<Lease[]>([]);
 
   // ── Ledger for selected statement ──
@@ -114,6 +118,7 @@ export function TenantProfilePage() {
         maintenanceService.getByTenant(tenantUid),
         alertService.getByUser(tenantUid),
         activityLogService.getByTargetUid(tenantUid),
+        inspectionService.getByTenant(tenantUid),
       ]);
 
       const tenantData = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -139,6 +144,7 @@ export function TenantProfilePage() {
       setTickets(results[6].status === 'fulfilled' ? results[6].value : []);
       setNotices(results[7].status === 'fulfilled' ? results[7].value : []);
       setActivity(results[8].status === 'fulfilled' ? results[8].value : []);
+      setInspections(results[9].status === 'fulfilled' ? results[9].value : []);
     } catch (err) {
       console.error('Failed to load tenant data:', err);
       setError('Failed to load tenant data.');
@@ -314,6 +320,11 @@ export function TenantProfilePage() {
         archived: false,
       });
       await logActivity('notice_sent', 'user', tenantUid, { title: noticeForm.title });
+      createAdminAlert({
+        type: 'general',
+        title: 'Notice Sent',
+        message: `Notice "${noticeForm.title}" sent to ${tenant?.displayName || 'tenant'}.`,
+      });
       closeModal();
       // Refresh notices
       const freshNotices = await alertService.getByUser(tenantUid);
@@ -397,6 +408,13 @@ export function TenantProfilePage() {
     if (!confirm('Void this document? The tenant will no longer see it as active.')) return;
     try {
       await portalDocumentService.update(docId, { status: 'void' as const });
+      createAdminAlert({
+        type: 'general',
+        title: 'Document Voided',
+        message: `A document was voided for ${tenant?.displayName || 'tenant'}.`,
+        relatedId: docId,
+        relatedType: 'lease',
+      });
       if (tenantUid) {
         const freshDocs = await portalDocumentService.getByOwner(tenantUid);
         setDocuments(freshDocs);
@@ -660,6 +678,7 @@ export function TenantProfilePage() {
         {activeTab === 'payments' && <PaymentsTab payments={payments} fmt={fmt} fmtDate={fmtDate} />}
         {activeTab === 'documents' && <DocumentsTab documents={documents} fmtDate={fmtDate} openUploadDoc={openUploadDoc} onVoidDoc={handleVoidDoc} />}
         {activeTab === 'maintenance' && <MaintenanceTab tickets={tickets} fmtDate={fmtDate} />}
+        {activeTab === 'inspection' && <InspectionTab inspections={inspections} fmtDate={fmtDate} />}
         {activeTab === 'notices' && <NoticesTab notices={notices} fmtDate={fmtDate} openNotice={openNotice} />}
         {activeTab === 'activity' && <ActivityTab activity={activity} fmtDate={fmtDate} />}
       </div>
@@ -1103,6 +1122,42 @@ function MaintenanceTab({ tickets, fmtDate }: { tickets: MaintenanceTicket[]; fm
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function InspectionTab({ inspections, fmtDate }: { inspections: MoveInInspection[]; fmtDate: (d: Date | string | null | undefined) => string }) {
+  if (inspections.length === 0) {
+    return <div className="tp-empty"><CheckCircle size={32} /><h3>No move-in inspections</h3></div>;
+  }
+
+  return (
+    <div>
+      <h3>Move-in Inspections</h3>
+      {inspections.map(ins => (
+        <div key={ins.id} style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span className={`badge badge-sm badge-${ins.status === 'submitted' ? 'success' : ins.status === 'in_progress' ? 'warning' : 'gray'}`}>
+              {ins.status.replace('_', ' ')}
+            </span>
+            {ins.submittedAt && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Submitted {fmtDate(ins.submittedAt)}</span>}
+          </div>
+          {ins.responses.length > 0 && (
+            <table className="mini-table">
+              <thead><tr><th>Item</th><th>Type</th><th>Response</th></tr></thead>
+              <tbody>
+                {ins.responses.map(r => (
+                  <tr key={r.fieldId}>
+                    <td>{r.label}</td>
+                    <td className="capitalize">{r.type}</td>
+                    <td>{r.type === 'check' ? (r.value === 'true' ? '✓' : '✗') : r.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

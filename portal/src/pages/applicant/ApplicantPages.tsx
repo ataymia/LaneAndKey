@@ -26,6 +26,7 @@ import {
 import { conversationService, messageService, userService, applicationService, propertyService, portalDocumentService } from '../../lib/firebase';
 import { uploadFile } from '../../lib/firebase/storage';
 import type { Conversation, Message, UserProfile, Property, Application, ApplicantProfile } from '../../types';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 
 // ─── Helpers ───
 function getStatusBadge(status: string) {
@@ -615,6 +616,13 @@ export function ApplicantListingsPage() {
       // Save profile for Quick Apply
       await userService.update(user.uid, { applicantProfile: snapshot } as any);
       setSavedProfile(snapshot);
+      createAdminAlert({
+        type: 'general',
+        title: 'New Application Submitted',
+        message: `${formData.fullName} submitted an application for ${applyingProperty.address}, ${applyingProperty.city}.`,
+        relatedId: appId,
+        relatedType: 'application',
+      });
       const updatedApps = await applicationService.getByApplicant(user.uid);
       setMyApps(updatedApps);
       setApplyingProperty(null);

@@ -17,6 +17,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { useAuth } from '../../contexts';
 import { portalDocumentService, isFirebaseConfigured } from '../../lib/firebase';
 import { generatedLeaseService } from '../../lib/firebase/firestore';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
 import { applySignaturesToPdf } from '../../lib/leaseGenerator';
 import type { PortalDocument, GeneratedLease, LeaseSignatureFieldValue } from '../../types';
@@ -159,6 +160,30 @@ export function TenantLeaseSignPage() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldCompletions, pdfUrl, genLease]);
+
+  /* ─── Persist field completions incrementally to Firestore ─── */
+  useEffect(() => {
+    if (!genLease) return;
+    const completed = Object.values(fieldCompletions).filter((f) => f.completedAt && f.value);
+    if (completed.length === 0) return;
+    // Debounce: save 500ms after last change
+    const timer = setTimeout(async () => {
+      try {
+        const updatedFields = (genLease.signatureFields ?? []).map((f) => {
+          const c = fieldCompletions[f.fieldId];
+          if (c?.value && c?.completedAt) {
+            return { ...f, value: c.value, completedAt: c.completedAt };
+          }
+          return f;
+        });
+        await generatedLeaseService.update(genLease.id, { signatureFields: updatedFields });
+      } catch (err) {
+        console.error('Failed to persist field progress:', err);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldCompletions]);
 
   /* ─── Init signature pad when modal opens ─── */
   const initSigPad = useCallback(() => {
@@ -349,6 +374,15 @@ export function TenantLeaseSignPage() {
 
       setSignSuccess(true);
 
+      // Notify admin
+      createAdminAlert({
+        type: 'general',
+        title: 'Lease Signed',
+        message: `Tenant ${userProfile?.displayName || user.uid} signed lease ${genLease.leaseId.slice(0, 8)}…`,
+        relatedId: genLease.id,
+        relatedType: 'lease',
+      });
+
       // Download signed copy
       const blob = new Blob([signedPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -359,7 +393,7 @@ export function TenantLeaseSignPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Structured signing error:', err);
-      setSignError('Signing failed. Please try again.');
+      setSignError(err instanceof Error ? err.message : 'Signing failed. Please try again.');
     } finally {
       setSigning(false);
     }

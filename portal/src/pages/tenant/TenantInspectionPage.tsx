@@ -7,6 +7,7 @@ import {
   inspectionService,
   generatedLeaseService,
 } from '../../lib/firebase/firestore';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { isFirebaseConfigured } from '../../lib/firebase/config';
 import type {
   MoveInInspection,
@@ -119,7 +120,16 @@ export function TenantInspectionPage() {
       }
 
       setSuccess(submit ? 'Inspection submitted successfully!' : 'Progress saved.');
-      if (submit) await load();
+      if (submit) {
+        createAdminAlert({
+          type: 'maintenance',
+          title: 'Move-in Inspection Submitted',
+          message: `Tenant submitted move-in inspection for lease ${genLease.leaseId.slice(0, 8)}…`,
+          relatedId: genLease.leaseId,
+          relatedType: 'lease',
+        });
+        await load();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
     } finally {

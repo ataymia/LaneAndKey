@@ -29,7 +29,7 @@ export function AlertsPage() {
   const loadAlerts = async () => {
     if (!user) return;
     try {
-      const data = await alertService.getByUser(user.uid);
+      const data = await alertService.getAll();
       setAlerts(data);
     } catch (error) {
       console.error('Error loading alerts:', error);

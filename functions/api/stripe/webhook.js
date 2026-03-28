@@ -25,6 +25,7 @@ import {
   createDocument,
   getSubcollection,
   documentExists,
+  queryDocuments,
 } from '../lib/firestore-rest.js';
 import { getServiceAccessToken } from '../lib/firestore-rest.js';
 
@@ -294,6 +295,31 @@ async function handleCheckoutCompleted(session, env, accessToken) {
       }, accessToken);
     } catch (err) {
       console.error('Failed to create payment alert:', err);
+    }
+  }
+
+  // 5. Create admin alerts for payment received
+  if (projectId) {
+    try {
+      const cents = amountReceived || 0;
+      const dollars = (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+      // Query all admin users
+      const admins = await queryDocuments(projectId, 'users', [{ field: 'role', op: 'EQUAL', value: 'admin' }], null, accessToken);
+      for (const admin of admins) {
+        await createDocument(projectId, 'alerts', {
+          userId: admin.id || admin.uid || '',
+          type: 'payment_received',
+          title: 'Payment Received',
+          message: `Rent payment of ${dollars} received${month ? ` for ${month}` : ''}.`,
+          relatedId: statementId || '',
+          relatedType: 'payment',
+          read: false,
+          archived: false,
+          createdAt: now,
+        }, accessToken);
+      }
+    } catch (err) {
+      console.error('Failed to create admin payment alert:', err);
     }
   }
 

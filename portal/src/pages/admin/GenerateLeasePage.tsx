@@ -13,6 +13,7 @@ import {
   activityLogService,
 } from '../../lib/firebase/firestore';
 import { portalDocumentService } from '../../lib/firebase/rentStatements';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
 import { useAuth } from '../../contexts';
 import { generateLeasePdf } from '../../lib/leaseGenerator';
@@ -112,15 +113,15 @@ export function GenerateLeasePage() {
   );
 
   // Auto-fill field values when template/tenant/lease change
-  // Only include admin-owned fields (ownerRole is 'admin' or undefined for backward compat)
+  // Include ALL fields — admin fills them, tenant never fills placeholders
   useEffect(() => {
     if (!selectedTemplate) return;
     const vals: Record<string, string> = {};
-    const adminFields = selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin');
-    for (const field of adminFields) {
+    for (const field of selectedTemplate.fieldSchema) {
       // Try to auto-fill from tenant/lease/property data
       const k = field.key;
       if (k === 'TENANT_FULL_NAME' && selectedTenant) vals[k] = selectedTenant.displayName;
+      else if (k === 'TENANT_1_NAME' && selectedTenant) vals[k] = selectedTenant.displayName;
       else if (k === 'PROPERTY_ADDRESS' && selectedProperty) vals[k] = `${selectedProperty.address}${selectedProperty.unit ? ` #${selectedProperty.unit}` : ''}, ${selectedProperty.city}, ${selectedProperty.state} ${selectedProperty.zip}`;
       else if (k === 'LEASE_START_DATE' && selectedLease) vals[k] = new Date(selectedLease.startDate).toLocaleDateString('en-US');
       else if (k === 'LEASE_END_DATE' && selectedLease?.endDate) vals[k] = new Date(selectedLease.endDate).toLocaleDateString('en-US');
@@ -142,9 +143,8 @@ export function GenerateLeasePage() {
       return;
     }
 
-    // Check required fields (admin-owned only)
-    const adminFields = selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin');
-    for (const f of adminFields) {
+    // Check required fields
+    for (const f of selectedTemplate.fieldSchema) {
       if (f.required && !fieldValues[f.key]?.trim()) {
         setGenError(`Required field "${f.label}" is empty.`);
         return;
@@ -208,6 +208,13 @@ export function GenerateLeasePage() {
         },
       });
 
+      createAdminAlert({
+        type: 'general',
+        title: 'Lease Generated',
+        message: `Lease generated from template "${selectedTemplate.name}" for ${selectedTenant?.displayName || 'tenant'}.`,
+        relatedId: genId,
+        relatedType: 'lease',
+      });
       setGenSuccess(`Lease generated successfully (ID: ${genId.slice(0, 8)}…). You can now send it for signature.`);
       await loadData();
     } catch (err) {
@@ -246,6 +253,13 @@ export function GenerateLeasePage() {
         action: 'lease_sent_for_signature',
         targetType: 'document',
         targetId: gen.id,
+      });
+      createAdminAlert({
+        type: 'general',
+        title: 'Lease Sent for Signature',
+        message: `Lease document sent to tenant for signature.`,
+        relatedId: gen.id,
+        relatedType: 'lease',
       });
       await loadData();
     } catch (err) {

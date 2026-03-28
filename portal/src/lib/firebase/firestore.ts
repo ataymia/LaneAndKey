@@ -473,6 +473,12 @@ export const alertService = {
       orderBy('createdAt', 'desc')
     ),
   
+  getAll: () =>
+    getDocuments<Alert>('alerts',
+      where('archived', '==', false),
+      orderBy('createdAt', 'desc')
+    ),
+  
   getUnread: (userId: string) =>
     getDocuments<Alert>('alerts', 
       where('userId', '==', userId),

@@ -8,6 +8,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { conversationService, messageService, userService, maintenanceService, leaseService } from '../../lib/firebase';
+import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import type {
   Conversation,
   Message,
@@ -94,6 +95,13 @@ export function TenantMaintenancePage() {
         attachments: [],
         status: 'new',
         comments: [],
+      });
+
+      createAdminAlert({
+        type: 'maintenance',
+        title: 'New Maintenance Request',
+        message: `Tenant ${userProfile.displayName || userProfile.uid} submitted a ${form.priority} priority ${form.category} maintenance request.`,
+        relatedType: 'maintenance',
       });
 
       const updated = await maintenanceService.getByTenant(userProfile.uid);
