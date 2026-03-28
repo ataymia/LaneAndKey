@@ -19,6 +19,7 @@ import {
   InvoicesPage,
   StatementsPage,
   MaintenancePage,
+  MaintenanceDetailPage,
   MessagesPage,
   AlertsPage,
   DocumentsPage,
@@ -113,6 +114,7 @@ function App() {
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="statements" element={<StatementsPage />} />
             <Route path="maintenance" element={<MaintenancePage />} />
+            <Route path="maintenance/:ticketId" element={<MaintenanceDetailPage />} />
             <Route path="messages" element={<MessagesPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="documents" element={<DocumentsPage />} />

@@ -360,6 +360,16 @@ export function TenantProfilePage() {
     setModalError(null); setModalLoading(true);
     try {
       const filePath = await uploadLeaseDocument(tenantUid, uploadFile);
+
+      // Void any existing active lease docs before creating the new one
+      const existingDocs = await portalDocumentService.getByOwner(tenantUid);
+      const activeLeaseDocs = existingDocs.filter(
+        (d) => d.category === 'lease' && d.status !== 'void' && d.status !== 'signed'
+      );
+      for (const old of activeLeaseDocs) {
+        await portalDocumentService.update(old.id, { status: 'void' as const });
+      }
+
       await portalDocumentService.create({
         ownerUid: tenantUid,
         uploadedByUid: adminUser.uid,
@@ -379,6 +389,21 @@ export function TenantProfilePage() {
       setModalError(err instanceof Error ? err.message : 'Failed to upload document');
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  // Void a portal document
+  const handleVoidDoc = async (docId: string) => {
+    if (!confirm('Void this document? The tenant will no longer see it as active.')) return;
+    try {
+      await portalDocumentService.update(docId, { status: 'void' as const });
+      if (tenantUid) {
+        const freshDocs = await portalDocumentService.getByOwner(tenantUid);
+        setDocuments(freshDocs);
+      }
+    } catch (err) {
+      console.error('Error voiding document:', err);
+      alert('Failed to void document.');
     }
   };
 
@@ -633,7 +658,7 @@ export function TenantProfilePage() {
         {activeTab === 'lease' && <LeaseTab lease={lease} allLeases={allLeases} property={property} fmtDate={fmtDate} fmtDollars={fmtDollars} openAssign={openAssign} openEditLease={openEditLease} openRenew={openRenew} onEndLease={handleEndLease} openOccupants={openOccupants} />}
         {activeTab === 'statements' && <StatementsTab statements={statements} selectedStatementId={selectedStatementId} setSelectedStatementId={setSelectedStatementId} ledgerEntries={ledgerEntries} ledgerLoading={ledgerLoading} fmt={fmt} fmtDate={fmtDate} openEntry={openEntry} />}
         {activeTab === 'payments' && <PaymentsTab payments={payments} fmt={fmt} fmtDate={fmtDate} />}
-        {activeTab === 'documents' && <DocumentsTab documents={documents} fmtDate={fmtDate} openUploadDoc={openUploadDoc} />}
+        {activeTab === 'documents' && <DocumentsTab documents={documents} fmtDate={fmtDate} openUploadDoc={openUploadDoc} onVoidDoc={handleVoidDoc} />}
         {activeTab === 'maintenance' && <MaintenanceTab tickets={tickets} fmtDate={fmtDate} />}
         {activeTab === 'notices' && <NoticesTab notices={notices} fmtDate={fmtDate} openNotice={openNotice} />}
         {activeTab === 'activity' && <ActivityTab activity={activity} fmtDate={fmtDate} />}
@@ -1007,7 +1032,7 @@ function PaymentsTab({ payments, fmt, fmtDate }: { payments: Payment[]; fmt: (c:
   );
 }
 
-function DocumentsTab({ documents, fmtDate, openUploadDoc }: { documents: PortalDocument[]; fmtDate: (d: Date | string | null | undefined) => string; openUploadDoc: () => void }) {
+function DocumentsTab({ documents, fmtDate, openUploadDoc, onVoidDoc }: { documents: PortalDocument[]; fmtDate: (d: Date | string | null | undefined) => string; openUploadDoc: () => void; onVoidDoc: (docId: string) => void }) {
   return (
     <div>
       <div className="tp-section-header">
@@ -1025,18 +1050,22 @@ function DocumentsTab({ documents, fmtDate, openUploadDoc }: { documents: Portal
           <thead><tr><th>File</th><th>Category</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>
             {documents.map(doc => (
-              <tr key={doc.id}>
+              <tr key={doc.id} style={doc.status === 'void' ? { opacity: 0.5 } : undefined}>
                 <td>{doc.fileName}</td>
                 <td><span className="badge badge-sm badge-gray">{doc.category}</span></td>
                 <td>
                   {doc.status === 'signed' ? <span className="badge badge-sm badge-success"><CheckCircle size={12} /> Signed</span>
+                    : doc.status === 'void' ? <span className="badge badge-sm badge-gray">Void</span>
                     : doc.status === 'sent' || doc.status === 'pending_signature' ? <span className="badge badge-sm badge-warning"><Clock size={12} /> Pending</span>
                     : <span className="badge badge-sm badge-gray">{doc.status}</span>}
                 </td>
                 <td>{fmtDate(doc.createdAt)}</td>
-                <td>
+                <td style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
                   {doc.originalFilePath && <a href={doc.originalFilePath} target="_blank" rel="noopener noreferrer" title="Download"><Download size={16} /></a>}
                   {doc.signedFilePath && <a href={doc.signedFilePath} target="_blank" rel="noopener noreferrer" title="Signed copy" style={{ marginLeft: '0.5rem' }}><CheckCircle size={16} /></a>}
+                  {doc.status !== 'void' && doc.status !== 'signed' && (
+                    <button className="btn btn-sm btn-outline" style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }} onClick={() => onVoidDoc(doc.id)} title="Void this document">Void</button>
+                  )}
                 </td>
               </tr>
             ))}

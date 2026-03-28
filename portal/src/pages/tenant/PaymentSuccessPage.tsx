@@ -9,14 +9,8 @@ export function PaymentSuccessPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   
   useEffect(() => {
-    // In a real implementation, you might verify the session with your backend
-    // For now, we'll just assume success if there's a session_id
     if (sessionId) {
-      // Simulate a brief loading state
-      const timer = setTimeout(() => {
-        setStatus('success');
-      }, 1000);
-      return () => clearTimeout(timer);
+      setStatus('success');
     } else {
       setStatus('error');
     }
@@ -60,8 +54,8 @@ export function PaymentSuccessPage() {
         <div className="result-icon success">
           <CheckCircle size={64} />
         </div>
-        <h1>Payment Successful!</h1>
-        <p>Thank you for your payment. A confirmation has been sent to your email.</p>
+        <h1>Payment Submitted</h1>
+        <p>Your payment is being processed. Your statement will update once Stripe confirms the charge.</p>
         
         {sessionId && (
           <div className="session-info">

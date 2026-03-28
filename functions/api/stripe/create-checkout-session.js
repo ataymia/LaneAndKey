@@ -80,8 +80,8 @@ function buildStripeBody(params, prefix = '') {
 /**
  * Get user role from Firestore
  */
-async function getUserRole(projectId, uid) {
-  const user = await getDocument(projectId, 'users', uid);
+async function getUserRole(projectId, uid, idToken) {
+  const user = await getDocument(projectId, 'users', uid, idToken);
   return user?.role || 'applicant';
 }
 
@@ -108,8 +108,9 @@ export async function onRequestPost(context) {
     
     // Authenticate the request
     const user = await authenticateRequest(request, env);
+    const idToken = request.headers.get('Authorization')?.replace('Bearer ', '') || '';
     const projectId = env.FIREBASE_PROJECT_ID;
-    const role = await getUserRole(projectId, user.uid);
+    const role = await getUserRole(projectId, user.uid, idToken);
     
     // Parse request body
     const body = await request.json();

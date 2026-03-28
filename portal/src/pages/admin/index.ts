@@ -8,6 +8,7 @@ export { PaymentsPage } from './PaymentsPage';
 export { InvoicesPage } from './InvoicesPage';
 export { StatementsPage } from './StatementsPage';
 export { MaintenancePage } from './MaintenancePage';
+export { MaintenanceDetailPage } from './MaintenanceDetailPage';
 export { MessagesPage } from './MessagesPage';
 export { AlertsPage } from './AlertsPage';
 export { DocumentsPage } from './DocumentsPage';

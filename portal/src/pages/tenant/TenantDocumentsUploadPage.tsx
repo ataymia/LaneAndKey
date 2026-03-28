@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FolderOpen,
   Upload,
@@ -39,6 +40,7 @@ function statusBadge(status: string) {
     case 'approved': return <span className="badge badge-success"><CheckCircle size={12} /> Approved</span>;
     case 'rejected': return <span className="badge badge-error"><X size={12} /> Rejected</span>;
     case 'pending_signature': return <span className="badge badge-warning"><AlertCircle size={12} /> Needs Signature</span>;
+    case 'void': return <span className="badge badge-gray"><X size={12} /> Void</span>;
     default: return <span className="badge badge-info"><Clock size={12} /> Pending Review</span>;
   }
 }
@@ -215,7 +217,7 @@ export function TenantDocumentsUploadPage() {
             <strong>Lease ready for signature</strong>
             <p>You have a document that requires your electronic signature.</p>
           </div>
-          <a href="/portal/tenant/lease" className="btn btn-primary btn-sm">View &amp; Sign</a>
+          <Link to="/tenant/lease" className="btn btn-primary btn-sm">View &amp; Sign</Link>
         </div>
       )}
 

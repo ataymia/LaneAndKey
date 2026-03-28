@@ -656,7 +656,7 @@ export interface LedgerEntry {
 // ==================== PORTAL DOCUMENTS ====================
 
 export type PortalDocCategory = 'lease' | 'pay_stub' | 'id' | 'bank_statement' | 'tax_return' | 'other';
-export type PortalDocStatus = 'pending' | 'approved' | 'rejected' | 'pending_signature' | 'signed' | 'uploaded' | 'sent' | 'viewed';
+export type PortalDocStatus = 'pending' | 'approved' | 'rejected' | 'pending_signature' | 'signed' | 'uploaded' | 'sent' | 'viewed' | 'void';
 
 export interface PortalDocument {
   id: string;

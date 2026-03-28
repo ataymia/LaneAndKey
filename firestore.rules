@@ -110,7 +110,13 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.uploadedByUid == request.auth.uid;
       allow update: if request.auth != null
-        && (resource.data.ownerUid == request.auth.uid || isAdmin());
+        && (
+          isAdmin()
+          || (
+            resource.data.ownerUid == request.auth.uid
+            && resource.data.status != 'void'
+          )
+        );
       allow delete: if isAdmin();
 
       match /events/{eventId} {

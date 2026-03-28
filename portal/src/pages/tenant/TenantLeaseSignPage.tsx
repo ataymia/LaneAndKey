@@ -84,7 +84,7 @@ export function TenantLeaseSignPage() {
         }
         const docs = await portalDocumentService.getByOwner(user.uid);
         const found = docs.find(
-          (d) => d.category === 'lease' && d.requiresSignature
+          (d) => d.category === 'lease' && d.requiresSignature && d.status !== 'void'
         );
         if (found) {
           setLease(found);

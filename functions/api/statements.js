@@ -13,7 +13,7 @@
  * - FIREBASE_PROJECT_ID
  */
 
-import { authenticateRequest } from './lib/firebase-verify.js';
+import { authenticateRequest, extractBearerToken } from './lib/firebase-verify.js';
 import {
   getDocument,
   queryDocuments,
@@ -37,8 +37,8 @@ function corsHeaders(env) {
 
 // ─── Get user role from Firestore ──────────────────────────
 
-async function getUserRole(projectId, uid) {
-  const user = await getDocument(projectId, 'users', uid);
+async function getUserRole(projectId, uid, idToken) {
+  const user = await getDocument(projectId, 'users', uid, idToken);
   return user?.role || 'applicant';
 }
 
@@ -46,15 +46,16 @@ async function getUserRole(projectId, uid) {
 
 async function handleGet(request, env) {
   const user = await authenticateRequest(request, env);
+  const idToken = extractBearerToken(request);
   const projectId = env.FIREBASE_PROJECT_ID;
-  const role = await getUserRole(projectId, user.uid);
+  const role = await getUserRole(projectId, user.uid, idToken);
   const url = new URL(request.url);
   const tenantUidParam = url.searchParams.get('tenantUid');
   const statementIdParam = url.searchParams.get('statementId');
 
   // Single statement fetch
   if (statementIdParam) {
-    const statement = await getDocument(projectId, 'rentStatements', statementIdParam);
+    const statement = await getDocument(projectId, 'rentStatements', statementIdParam, idToken);
     if (!statement) {
       return new Response(JSON.stringify({ error: 'Statement not found' }), {
         status: 404,
@@ -78,7 +79,8 @@ async function handleGet(request, env) {
     const ledger = await getSubcollection(
       projectId,
       `rentStatements/${statementIdParam}`,
-      'ledger'
+      'ledger',
+      idToken
     );
 
     // Sort ledger by effectiveDate
@@ -102,14 +104,16 @@ async function handleGet(request, env) {
         projectId,
         'rentStatements',
         [{ field: 'tenantUid', op: 'EQUAL', value: tenantUidParam }],
-        { field: 'month', direction: 'DESCENDING' }
+        { field: 'month', direction: 'DESCENDING' },
+        idToken
       );
     } else {
       statements = await queryDocuments(
         projectId,
         'rentStatements',
         null,
-        { field: 'month', direction: 'DESCENDING' }
+        { field: 'month', direction: 'DESCENDING' },
+        idToken
       );
     }
   } else {
@@ -118,7 +122,8 @@ async function handleGet(request, env) {
       projectId,
       'rentStatements',
       [{ field: 'tenantUid', op: 'EQUAL', value: user.uid }],
-      { field: 'month', direction: 'DESCENDING' }
+      { field: 'month', direction: 'DESCENDING' },
+      idToken
     );
   }
 
@@ -144,8 +149,9 @@ async function handleGet(request, env) {
 
 async function handlePost(request, env) {
   const user = await authenticateRequest(request, env);
+  const idToken = extractBearerToken(request);
   const projectId = env.FIREBASE_PROJECT_ID;
-  const role = await getUserRole(projectId, user.uid);
+  const role = await getUserRole(projectId, user.uid, idToken);
 
   if (role !== 'admin') {
     return new Response(JSON.stringify({ error: 'Admin access required' }), {
@@ -165,7 +171,7 @@ async function handlePost(request, env) {
   }
 
   // Verify statement exists
-  const statement = await getDocument(projectId, 'rentStatements', statementId);
+  const statement = await getDocument(projectId, 'rentStatements', statementId, idToken);
   if (!statement) {
     return new Response(JSON.stringify({ error: 'Statement not found' }), {
       status: 404,
@@ -187,14 +193,16 @@ async function handlePost(request, env) {
   const created = await createDocument(
     projectId,
     `rentStatements/${statementId}/ledger`,
-    entry
+    entry,
+    idToken
   );
 
   // Recompute balance
   const allEntries = await getSubcollection(
     projectId,
     `rentStatements/${statementId}`,
-    'ledger'
+    'ledger',
+    idToken
   );
   const newBalance = allEntries.reduce((sum, e) => sum + (e.amountCents || 0), 0);
 
@@ -209,7 +217,7 @@ async function handlePost(request, env) {
     updateData.status = 'open';
   }
 
-  await updateDocument(projectId, 'rentStatements', statementId, updateData);
+  await updateDocument(projectId, 'rentStatements', statementId, updateData, idToken);
 
   return new Response(JSON.stringify({
     success: true,
