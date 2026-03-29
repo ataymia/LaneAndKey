@@ -286,6 +286,9 @@ export const leaseService = {
   
   get: (id: string) => getDocument<Lease>('leases', id),
   
+  getAll: () =>
+    getDocuments<Lease>('leases', orderBy('createdAt', 'desc')),
+  
   getByProperty: (propertyId: string) =>
     getDocuments<Lease>('leases', where('propertyId', '==', propertyId)),
   

@@ -82,16 +82,22 @@ export function GenerateLeasePage() {
           leaseTemplateService.getAll().then(all => all.filter(t => t.status === 'published'))
         ),
         userService.getAll(),
-        leaseService.getActive(),
+        leaseService.getAll(),
         propertyService.getAll(),
         generatedLeaseService.getAll(),
       ]);
-      if (tplRes.status === 'fulfilled') setTemplates(tplRes.value);
+      let loadedTemplates: LeaseTemplate[] = [];
+      if (tplRes.status === 'fulfilled') { loadedTemplates = tplRes.value; setTemplates(loadedTemplates); }
       else console.error('Failed to load templates:', (tplRes as PromiseRejectedResult).reason);
       if (tenantRes.status === 'fulfilled') setTenants(tenantRes.value.filter((u: UserProfile) => u.role === 'tenant'));
       if (leaseRes.status === 'fulfilled') setLeases(leaseRes.value);
       if (propRes.status === 'fulfilled') setProperties(propRes.value);
       if (genRes.status === 'fulfilled') setGenerated(genRes.value);
+
+      // Auto-select template when navigating with presets and only one template exists
+      if (presetTenantUid && presetLeaseId && loadedTemplates.length === 1 && !selectedTemplateId) {
+        setSelectedTemplateId(loadedTemplates[0].id);
+      }
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -177,6 +183,10 @@ export function GenerateLeasePage() {
       setGenError('Select a template, tenant, and lease first.');
       return;
     }
+    if (!selectedLease) {
+      setGenError('Selected lease not found. Make sure the lease exists and try again.');
+      return;
+    }
 
     // Check required fields
     for (const f of selectedTemplate.fieldSchema) {
@@ -205,7 +215,7 @@ export function GenerateLeasePage() {
         templateId: selectedTemplate.id,
         templateVersion: selectedTemplate.version,
         tenantUid: selectedTenantUid,
-        propertyId: selectedLease!.propertyId,
+        propertyId: selectedLease.propertyId,
         generatedByUid: adminUser!.uid,
         generatedAt: new Date(),
         fieldValues,
