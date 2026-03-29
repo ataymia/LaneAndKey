@@ -307,7 +307,7 @@ export function GenerateLeasePage() {
     const label = gen.signingStatus === 'signed' ? 'void this signed lease' : 'void this generated lease';
     if (!confirm(`Are you sure you want to ${label}? The tenant will no longer be able to sign it.`)) return;
     try {
-      await generatedLeaseService.update(gen.id, { signingStatus: 'not_generated' as GeneratedLease['signingStatus'] });
+      await generatedLeaseService.update(gen.id, { signingStatus: 'voided' });
       if (gen.portalDocumentId) {
         await portalDocumentService.update(gen.portalDocumentId, { status: 'void' as const });
       }
@@ -555,7 +555,7 @@ export function GenerateLeasePage() {
                           {g.signingStatus === 'signed' && (
                             <span className="signed-check"><CheckCircle size={14} /> Complete</span>
                           )}
-                          {g.signingStatus !== 'not_generated' && (
+                          {g.signingStatus !== 'not_generated' && g.signingStatus !== 'voided' && (
                             <button className="btn btn-outline btn-xs" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={() => voidGeneratedLease(g)} title="Void this lease">
                               <XCircle size={14} /> Void
                             </button>

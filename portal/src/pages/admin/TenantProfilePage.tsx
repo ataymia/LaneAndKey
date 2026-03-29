@@ -628,7 +628,7 @@ export function TenantProfilePage() {
                 <button onClick={() => { setActiveTab('payments'); }}><CreditCard size={14} /> View Payment History</button>
                 <button onClick={() => { setActiveTab('maintenance'); }}><Wrench size={14} /> View Maintenance</button>
                 <hr />
-                {lease && <button onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}><FileText size={14} /> Generate Lease</button>}
+                {lease && <button onClick={() => navigate(`/admin/generate-lease?tenantUid=${tenantUid}&leaseId=${lease.id}`)}><FileText size={14} /> Generate Lease</button>}
                 {lease && <button onClick={handleVoidAndResetLease} style={{ color: '#dc2626' }}><AlertTriangle size={14} /> Void &amp; Reset Lease</button>}
                 <hr />
                 {lease && <button onClick={openOccupants}><Users size={14} /> Manage Occupants</button>}
@@ -987,12 +987,12 @@ function LeaseTab({ lease, allLeases, property, generatedLeases, fmtDate, fmtDol
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {!latestGen && (
-              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}>
+              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantUid=${tenantUid}&leaseId=${lease.id}`)}>
                 <FileText size={14} /> Generate Lease
               </button>
             )}
             {latestGen && latestGen.signingStatus !== 'signed' && (
-              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}>
+              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantUid=${tenantUid}&leaseId=${lease.id}`)}>
                 <FileText size={14} /> Regenerate
               </button>
             )}
