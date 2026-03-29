@@ -7,10 +7,13 @@ import {
   Wrench,
   ArrowRight,
   DollarSign,
+  Pen,
+  AlertCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { leaseService, maintenanceService, propertyService, rentStatementService } from '../../lib/firebase';
-import type { Lease, Property, RentStatement } from '../../types';
+import { generatedLeaseService } from '../../lib/firebase/firestore';
+import type { Lease, Property, RentStatement, GeneratedLease } from '../../types';
 import './TenantDashboard.css';
 
 export function TenantDashboard() {
@@ -21,6 +24,8 @@ export function TenantDashboard() {
   const [property, setProperty] = useState<Property | null>(null);
   const [statements, setStatements] = useState<RentStatement[]>([]);
   const [openTickets, setOpenTickets] = useState(0);
+  const [pendingLease, setPendingLease] = useState<GeneratedLease | null>(null);
+  const [allVoided, setAllVoided] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -59,6 +64,24 @@ export function TenantDashboard() {
 
         setStatements(statementData);
         setOpenTickets(maintenanceData.filter((ticket) => ticket.status !== 'completed').length);
+
+        // Check for pending lease to sign or voided leases
+        try {
+          const genLeases = await generatedLeaseService.getByTenant(userProfile.uid);
+          const pending = genLeases.find(
+            (g) => g.signingStatus === 'sent' || g.signingStatus === 'viewed'
+          );
+          setPendingLease(pending || null);
+
+          // If there are generated leases but all are voided, let tenant know
+          if (!pending && genLeases.length > 0 && genLeases.every(
+            (g) => g.signingStatus === 'voided'
+          )) {
+            setAllVoided(true);
+          }
+        } catch (glErr) {
+          console.warn('Failed to check generated leases:', glErr);
+        }
       } catch (loadError) {
         console.error('Error loading tenant dashboard data:', loadError);
         setError('Failed to load your dashboard. Please refresh and try again.');
@@ -126,6 +149,31 @@ export function TenantDashboard() {
           <p>Here's an overview of your account</p>
         </div>
       </div>
+
+      {/* Lease signing banner */}
+      {pendingLease && (
+        <div className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '1rem 1.25rem', borderRadius: '0.5rem', background: '#fef3cd', border: '1px solid #ffc107' }}>
+          <Pen size={20} />
+          <div style={{ flex: 1 }}>
+            <strong>You have a lease to sign.</strong>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>Your property manager has sent a lease agreement for your review and signature.</p>
+          </div>
+          <Link to="/tenant/lease" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
+            Review &amp; Sign
+          </Link>
+        </div>
+      )}
+
+      {/* Voided lease banner */}
+      {allVoided && !pendingLease && (
+        <div className="alert alert-info" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '1rem 1.25rem', borderRadius: '0.5rem', background: '#e8f4fd', border: '1px solid #bee5eb' }}>
+          <AlertCircle size={20} />
+          <div style={{ flex: 1 }}>
+            <strong>Lease update in progress</strong>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>Your previous lease was voided. Your property manager is preparing an updated lease — you'll be notified when it's ready to sign.</p>
+          </div>
+        </div>
+      )}
 
       {/* Main Cards */}
       <div className="dashboard-cards">

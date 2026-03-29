@@ -90,6 +90,7 @@ export function TenantLeaseSignPage() {
   const [signSuccess, setSignSuccess] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [allLeasesVoided, setAllLeasesVoided] = useState(false);
 
   const isStructured = !!genLease?.signatureFields?.length;
 
@@ -134,6 +135,13 @@ export function TenantLeaseSignPage() {
         const sent = genLeases.find(
           (g) => g.signingStatus === 'sent' || g.signingStatus === 'viewed'
         );
+
+        // Detect if all generated leases have been voided (admin correction flow)
+        if (!sent && !found && genLeases.length > 0 && genLeases.every(
+          (g) => g.signingStatus === 'voided'
+        )) {
+          setAllLeasesVoided(true);
+        }
 
         // Determine storage path for PDF
         const storagePath = sent?.pdfOriginalPath || found?.originalFilePath;
@@ -516,8 +524,17 @@ export function TenantLeaseSignPage() {
       {!lease && !genLease ? (
         <div className="empty-state">
           <FileText size={48} />
-          <h3>No Lease on File</h3>
-          <p>Your property manager hasn't uploaded a lease yet.</p>
+          {allLeasesVoided ? (
+            <>
+              <h3>Lease Update in Progress</h3>
+              <p>Your previous lease was voided by your property manager. A new lease is being prepared — you'll see it here once it's ready for your signature.</p>
+            </>
+          ) : (
+            <>
+              <h3>No Lease on File</h3>
+              <p>Your property manager hasn't uploaded a lease yet.</p>
+            </>
+          )}
         </div>
       ) : (
         <>

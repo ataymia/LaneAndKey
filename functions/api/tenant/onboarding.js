@@ -18,8 +18,9 @@ export async function onRequestGet(context) {
       return jsonResponse({ error: 'Lease not found' }, 404, env);
     }
 
-    const onboardingRequired = lease.status !== 'active' || lease.onboardingStatus !== 'complete';
-    return jsonResponse({ lease, onboardingRequired }, 200, env);
+    // Onboarding gate removed — tenants always go straight to their dashboard.
+    // Stripe handles payment setup at checkout time so no pre-onboarding is needed.
+    return jsonResponse({ lease, onboardingRequired: false }, 200, env);
   } catch (error) {
     return handleApiError(error, env);
   }
