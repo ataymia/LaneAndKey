@@ -350,7 +350,7 @@ export type SignatureFieldType = 'signature' | 'date' | 'initial' | 'check' | 't
 export type SignatureFieldRole = 'tenant' | 'landlord';
 export type FieldOwnerRole = 'admin' | 'tenant' | 'landlord';
 export type FieldPhase = 'generation' | 'signing' | 'move_in_inspection' | 'any';
-export type LeaseSigningStatus = 'not_generated' | 'generated' | 'sent' | 'viewed' | 'signed';
+export type LeaseSigningStatus = 'not_generated' | 'generated' | 'sent' | 'viewed' | 'signed' | 'voided';
 export type InspectionStatus = 'not_started' | 'in_progress' | 'submitted';
 
 export interface TemplateFieldDef {
@@ -712,6 +712,7 @@ export type ActivityAction =
   | 'lease_generated'
   | 'lease_sent_for_signature'
   | 'lease_signed'
+  | 'lease_voided'
   | 'inspection_submitted';
 
 export interface ActivityLog {

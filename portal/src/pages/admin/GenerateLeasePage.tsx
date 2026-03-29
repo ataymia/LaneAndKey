@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText, Download, Send, RefreshCw, AlertTriangle,
-  CheckCircle, Loader2, Clock, Pen,
+  CheckCircle, Loader2, Clock, Pen, XCircle,
 } from 'lucide-react';
 import {
   leaseTemplateService,
@@ -39,6 +39,7 @@ const SIGNING_BADGE: Record<LeaseSigningStatus, { cls: string; label: string }> 
   sent: { cls: 'badge-warning', label: 'Sent' },
   viewed: { cls: 'badge-info', label: 'Viewed' },
   signed: { cls: 'badge-success', label: 'Signed' },
+  voided: { cls: 'badge-gray', label: 'Voided' },
 };
 
 /* ─── Component ─── */
@@ -301,6 +302,28 @@ export function GenerateLeasePage() {
     }
   };
 
+  /* ─── Void a generated lease ─── */
+  const voidGeneratedLease = async (gen: GeneratedLease) => {
+    const label = gen.signingStatus === 'signed' ? 'void this signed lease' : 'void this generated lease';
+    if (!confirm(`Are you sure you want to ${label}? The tenant will no longer be able to sign it.`)) return;
+    try {
+      await generatedLeaseService.update(gen.id, { signingStatus: 'not_generated' as GeneratedLease['signingStatus'] });
+      if (gen.portalDocumentId) {
+        await portalDocumentService.update(gen.portalDocumentId, { status: 'void' as const });
+      }
+      createAdminAlert({
+        type: 'general',
+        title: 'Generated Lease Voided',
+        message: `A generated lease was voided (was: ${gen.signingStatus}).`,
+        relatedId: gen.id,
+        relatedType: 'lease',
+      });
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to void');
+    }
+  };
+
   /* ─── Download ─── */
   const downloadPdf = async (path: string, filename: string) => {
     try {
@@ -524,13 +547,18 @@ export function GenerateLeasePage() {
                               <Send size={14} /> Send
                             </button>
                           )}
-                          {g.signingStatus === 'sent' && (
+                          {(g.signingStatus === 'sent' || g.signingStatus === 'viewed') && (
                             <button className="btn btn-outline btn-xs" onClick={() => sendForSignature(g)}>
                               <Send size={14} /> Resend
                             </button>
                           )}
                           {g.signingStatus === 'signed' && (
                             <span className="signed-check"><CheckCircle size={14} /> Complete</span>
+                          )}
+                          {g.signingStatus !== 'not_generated' && (
+                            <button className="btn btn-outline btn-xs" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={() => voidGeneratedLease(g)} title="Void this lease">
+                              <XCircle size={14} /> Void
+                            </button>
                           )}
                         </div>
                       </td>

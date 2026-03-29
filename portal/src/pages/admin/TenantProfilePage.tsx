@@ -10,16 +10,17 @@ import { useAuth } from '../../contexts';
 import {
   userService, leaseService, propertyService, maintenanceService,
   alertService, activityLogService, inspectionService,
+  generatedLeaseService,
 } from '../../lib/firebase/firestore';
 import { rentStatementService, ledgerService, portalDocumentService } from '../../lib/firebase/rentStatements';
 import { paymentService } from '../../lib/firebase/firestore';
-import { uploadLeaseDocument } from '../../lib/firebase/storage';
+import { uploadLeaseDocument, getFileUrl } from '../../lib/firebase/storage';
 import { assignLease, editLease, addStatementEntry } from '../../lib/api/portalApi';
 import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import type {
   UserProfile, Property, Lease, RentStatement, LedgerEntry, Payment,
   MaintenanceTicket, Alert, PortalDocument, ActivityLog, LeaseOccupant,
-  MoveInInspection,
+  MoveInInspection, GeneratedLease,
 } from '../../types';
 import './TenantProfile.css';
 
@@ -57,6 +58,7 @@ export function TenantProfilePage() {
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [inspections, setInspections] = useState<MoveInInspection[]>([]);
   const [allLeases, setAllLeases] = useState<Lease[]>([]);
+  const [generatedLeases, setGeneratedLeases] = useState<GeneratedLease[]>([]);
 
   // ── Ledger for selected statement ──
   const [selectedStatementId, setSelectedStatementId] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function TenantProfilePage() {
         portalDocumentService.getByOwner(tenantUid),
         maintenanceService.getByTenant(tenantUid),
         alertService.getByUser(tenantUid),
+        generatedLeaseService.getByTenant(tenantUid),
         activityLogService.getByTargetUid(tenantUid),
         inspectionService.getByTenant(tenantUid),
       ]);
@@ -143,8 +146,9 @@ export function TenantProfilePage() {
       setDocuments(results[5].status === 'fulfilled' ? results[5].value : []);
       setTickets(results[6].status === 'fulfilled' ? results[6].value : []);
       setNotices(results[7].status === 'fulfilled' ? results[7].value : []);
-      setActivity(results[8].status === 'fulfilled' ? results[8].value : []);
-      setInspections(results[9].status === 'fulfilled' ? results[9].value : []);
+      setGeneratedLeases(results[8].status === 'fulfilled' ? (results[8].value as GeneratedLease[]) : []);
+      setActivity(results[9].status === 'fulfilled' ? results[9].value : []);
+      setInspections(results[10].status === 'fulfilled' ? results[10].value : []);
     } catch (err) {
       console.error('Failed to load tenant data:', err);
       setError('Failed to load tenant data.');
@@ -408,6 +412,11 @@ export function TenantProfilePage() {
     if (!confirm('Void this document? The tenant will no longer see it as active.')) return;
     try {
       await portalDocumentService.update(docId, { status: 'void' as const });
+      // Also void any linked GeneratedLease
+      const linked = generatedLeases.find(g => g.portalDocumentId === docId);
+      if (linked) {
+        await generatedLeaseService.update(linked.id, { signingStatus: 'voided' });
+      }
       createAdminAlert({
         type: 'general',
         title: 'Document Voided',
@@ -415,13 +424,36 @@ export function TenantProfilePage() {
         relatedId: docId,
         relatedType: 'lease',
       });
-      if (tenantUid) {
-        const freshDocs = await portalDocumentService.getByOwner(tenantUid);
-        setDocuments(freshDocs);
-      }
+      await loadAll();
     } catch (err) {
       console.error('Error voiding document:', err);
       alert('Failed to void document.');
+    }
+  };
+
+  // Void & Reset – voids ALL active generated leases + portal docs so a new one can be sent
+  const handleVoidAndResetLease = async () => {
+    if (!tenantUid) return;
+    const msg = 'Void the current lease document and reset signing? This lets you generate and send a new one.';
+    if (!confirm(msg)) return;
+    try {
+      // Void all non-voided GeneratedLeases for this tenant
+      for (const gl of generatedLeases) {
+        if (gl.signingStatus !== 'voided') {
+          await generatedLeaseService.update(gl.id, { signingStatus: 'voided' });
+        }
+      }
+      // Void all active lease portal docs
+      const leaseDocs = documents.filter(d => d.category === 'lease' && d.status !== 'void');
+      for (const doc of leaseDocs) {
+        await portalDocumentService.update(doc.id, { status: 'void' as const });
+      }
+      await logActivity('lease_voided', 'lease', lease?.id || tenantUid, { reason: 'Admin voided and reset' });
+      await loadAll();
+      alert('Lease documents voided. You can now generate and send a new lease.');
+    } catch (err) {
+      console.error('Error voiding lease:', err);
+      alert('Failed to void lease documents.');
     }
   };
 
@@ -596,6 +628,9 @@ export function TenantProfilePage() {
                 <button onClick={() => { setActiveTab('payments'); }}><CreditCard size={14} /> View Payment History</button>
                 <button onClick={() => { setActiveTab('maintenance'); }}><Wrench size={14} /> View Maintenance</button>
                 <hr />
+                {lease && <button onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}><FileText size={14} /> Generate Lease</button>}
+                {lease && <button onClick={handleVoidAndResetLease} style={{ color: '#dc2626' }}><AlertTriangle size={14} /> Void &amp; Reset Lease</button>}
+                <hr />
                 {lease && <button onClick={openOccupants}><Users size={14} /> Manage Occupants</button>}
                 <button onClick={openEditContact}><User size={14} /> Edit Contact Info</button>
               </div>
@@ -673,7 +708,7 @@ export function TenantProfilePage() {
 
       {/* ── Tab Content ── */}
       <div className="tp-tab-content">
-        {activeTab === 'lease' && <LeaseTab lease={lease} allLeases={allLeases} property={property} fmtDate={fmtDate} fmtDollars={fmtDollars} openAssign={openAssign} openEditLease={openEditLease} openRenew={openRenew} onEndLease={handleEndLease} openOccupants={openOccupants} />}
+        {activeTab === 'lease' && <LeaseTab lease={lease} allLeases={allLeases} property={property} generatedLeases={generatedLeases} fmtDate={fmtDate} fmtDollars={fmtDollars} openAssign={openAssign} openEditLease={openEditLease} openRenew={openRenew} onEndLease={handleEndLease} openOccupants={openOccupants} onVoidAndReset={handleVoidAndResetLease} tenantUid={tenantUid || ''} navigate={navigate} />}
         {activeTab === 'statements' && <StatementsTab statements={statements} selectedStatementId={selectedStatementId} setSelectedStatementId={setSelectedStatementId} ledgerEntries={ledgerEntries} ledgerLoading={ledgerLoading} fmt={fmt} fmtDate={fmtDate} openEntry={openEntry} />}
         {activeTab === 'payments' && <PaymentsTab payments={payments} fmt={fmt} fmtDate={fmtDate} />}
         {activeTab === 'documents' && <DocumentsTab documents={documents} fmtDate={fmtDate} openUploadDoc={openUploadDoc} onVoidDoc={handleVoidDoc} />}
@@ -886,10 +921,11 @@ export function TenantProfilePage() {
    TAB COMPONENTS
    ================================================================ */
 
-function LeaseTab({ lease, allLeases, property, fmtDate, fmtDollars, openAssign, openEditLease, openRenew, onEndLease, openOccupants }: {
+function LeaseTab({ lease, allLeases, property, generatedLeases, fmtDate, fmtDollars, openAssign, openEditLease, openRenew, onEndLease, openOccupants, onVoidAndReset, tenantUid, navigate }: {
   lease: Lease | null;
   allLeases: Lease[];
   property: Property | null;
+  generatedLeases: GeneratedLease[];
   fmtDate: (d: Date | string | null | undefined) => string;
   fmtDollars: (d: number) => string;
   openAssign: () => void;
@@ -897,6 +933,9 @@ function LeaseTab({ lease, allLeases, property, fmtDate, fmtDollars, openAssign,
   openRenew: () => void;
   onEndLease: () => void;
   openOccupants: () => void;
+  onVoidAndReset: () => void;
+  tenantUid: string;
+  navigate: (path: string) => void;
 }) {
   if (!lease) {
     return (
@@ -907,6 +946,15 @@ function LeaseTab({ lease, allLeases, property, fmtDate, fmtDollars, openAssign,
       </div>
     );
   }
+
+  const latestGen = generatedLeases.find(g => g.signingStatus !== 'voided');
+  const signingBadge = latestGen ? (
+    latestGen.signingStatus === 'signed' ? <span className="badge badge-sm badge-success"><CheckCircle size={12} /> Signed</span>
+    : latestGen.signingStatus === 'viewed' ? <span className="badge badge-sm badge-warning"><Clock size={12} /> Viewed</span>
+    : latestGen.signingStatus === 'sent' ? <span className="badge badge-sm badge-warning"><Send size={12} /> Sent</span>
+    : latestGen.signingStatus === 'generated' ? <span className="badge badge-sm badge-gray">Generated (not sent)</span>
+    : <span className="badge badge-sm badge-gray">{latestGen.signingStatus}</span>
+  ) : null;
 
   return (
     <div className="tp-lease-section">
@@ -928,6 +976,35 @@ function LeaseTab({ lease, allLeases, property, fmtDate, fmtDollars, openAssign,
         <div><span className="tp-label">Rent Due Day</span><span className="tp-value">{lease.rentDueDay || 1}st of month</span></div>
         <div><span className="tp-label">Grace Period</span><span className="tp-value">{lease.gracePeriodDays || 0} days</span></div>
       </div>
+
+      {/* Lease Document Status */}
+      <div style={{ marginTop: '1.25rem', padding: '1rem', background: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Lease Document: </span>
+            {signingBadge || <span className="badge badge-sm badge-gray">Not generated</span>}
+            {latestGen?.signedAt && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#64748b' }}>Signed {fmtDate(latestGen.signedAt)}</span>}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {!latestGen && (
+              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}>
+                <FileText size={14} /> Generate Lease
+              </button>
+            )}
+            {latestGen && latestGen.signingStatus !== 'signed' && (
+              <button className="btn btn-sm btn-primary" onClick={() => navigate(`/admin/generate-lease?tenantId=${tenantUid}&leaseId=${lease.id}`)}>
+                <FileText size={14} /> Regenerate
+              </button>
+            )}
+            {latestGen && (
+              <button className="btn btn-sm btn-outline" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={onVoidAndReset}>
+                <AlertTriangle size={14} /> Void &amp; Reset
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {lease.occupants && lease.occupants.length > 0 && (
         <div style={{ marginTop: '1rem' }}>
           <div className="tp-section-header">
@@ -1052,6 +1129,28 @@ function PaymentsTab({ payments, fmt, fmtDate }: { payments: Payment[]; fmt: (c:
 }
 
 function DocumentsTab({ documents, fmtDate, openUploadDoc, onVoidDoc }: { documents: PortalDocument[]; fmtDate: (d: Date | string | null | undefined) => string; openUploadDoc: () => void; onVoidDoc: (docId: string) => void }) {
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, { original?: string; signed?: string }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolve() {
+      const urls: Record<string, { original?: string; signed?: string }> = {};
+      for (const doc of documents) {
+        const entry: { original?: string; signed?: string } = {};
+        try {
+          if (doc.originalFilePath) entry.original = await getFileUrl(doc.originalFilePath);
+        } catch { /* ignore */ }
+        try {
+          if (doc.signedFilePath) entry.signed = await getFileUrl(doc.signedFilePath);
+        } catch { /* ignore */ }
+        urls[doc.id] = entry;
+      }
+      if (!cancelled) setResolvedUrls(urls);
+    }
+    if (documents.length > 0) resolve();
+    return () => { cancelled = true; };
+  }, [documents]);
+
   return (
     <div>
       <div className="tp-section-header">
@@ -1068,26 +1167,29 @@ function DocumentsTab({ documents, fmtDate, openUploadDoc, onVoidDoc }: { docume
         <table className="mini-table">
           <thead><tr><th>File</th><th>Category</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>
-            {documents.map(doc => (
-              <tr key={doc.id} style={doc.status === 'void' ? { opacity: 0.5 } : undefined}>
-                <td>{doc.fileName}</td>
-                <td><span className="badge badge-sm badge-gray">{doc.category}</span></td>
-                <td>
-                  {doc.status === 'signed' ? <span className="badge badge-sm badge-success"><CheckCircle size={12} /> Signed</span>
-                    : doc.status === 'void' ? <span className="badge badge-sm badge-gray">Void</span>
-                    : doc.status === 'sent' || doc.status === 'pending_signature' ? <span className="badge badge-sm badge-warning"><Clock size={12} /> Pending</span>
-                    : <span className="badge badge-sm badge-gray">{doc.status}</span>}
-                </td>
-                <td>{fmtDate(doc.createdAt)}</td>
-                <td style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                  {doc.originalFilePath && <a href={doc.originalFilePath} target="_blank" rel="noopener noreferrer" title="Download"><Download size={16} /></a>}
-                  {doc.signedFilePath && <a href={doc.signedFilePath} target="_blank" rel="noopener noreferrer" title="Signed copy" style={{ marginLeft: '0.5rem' }}><CheckCircle size={16} /></a>}
-                  {doc.status !== 'void' && doc.status !== 'signed' && (
-                    <button className="btn btn-sm btn-outline" style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }} onClick={() => onVoidDoc(doc.id)} title="Void this document">Void</button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {documents.map(doc => {
+              const urls = resolvedUrls[doc.id];
+              return (
+                <tr key={doc.id} style={doc.status === 'void' ? { opacity: 0.5 } : undefined}>
+                  <td>{doc.fileName}</td>
+                  <td><span className="badge badge-sm badge-gray">{doc.category}</span></td>
+                  <td>
+                    {doc.status === 'signed' ? <span className="badge badge-sm badge-success"><CheckCircle size={12} /> Signed</span>
+                      : doc.status === 'void' ? <span className="badge badge-sm badge-gray">Void</span>
+                      : doc.status === 'sent' || doc.status === 'pending_signature' ? <span className="badge badge-sm badge-warning"><Clock size={12} /> Pending</span>
+                      : <span className="badge badge-sm badge-gray">{doc.status}</span>}
+                  </td>
+                  <td>{fmtDate(doc.createdAt)}</td>
+                  <td style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                    {urls?.original && <a href={urls.original} target="_blank" rel="noopener noreferrer" title="Download"><Download size={16} /></a>}
+                    {urls?.signed && <a href={urls.signed} target="_blank" rel="noopener noreferrer" title="Signed copy" style={{ marginLeft: '0.5rem' }}><CheckCircle size={16} /></a>}
+                    {doc.status !== 'void' && (
+                      <button className="btn btn-sm btn-outline" style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }} onClick={() => onVoidDoc(doc.id)} title="Void this document">Void</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
