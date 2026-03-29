@@ -16,11 +16,10 @@ import {
 } from 'lucide-react';
 import SignaturePad from 'signature_pad';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { ref, getBytes } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 import { useAuth } from '../../contexts';
 import { portalDocumentService, isFirebaseConfigured } from '../../lib/firebase';
 import { generatedLeaseService } from '../../lib/firebase/firestore';
-import { storage } from '../../lib/firebase/config';
 import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
 import { applySignaturesToPdf } from '../../lib/leaseGenerator';
@@ -38,11 +37,27 @@ function fmtDate(d: Date | string | null | undefined) {
   return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-/** Load PDF bytes from Firebase Storage using SDK (avoids CORS issues with raw fetch) */
+/** Load PDF bytes through same-origin proxy to avoid CORS issues with Firebase Storage */
 async function loadPdfBytes(storagePath: string): Promise<Uint8Array> {
-  const storageRef = ref(storage, storagePath);
-  const bytes = await getBytes(storageRef);
-  return new Uint8Array(bytes);
+  const auth = getAuth();
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error('Not authenticated');
+
+  const resp = await fetch('/api/proxy-storage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ storagePath }),
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    throw new Error(`Proxy fetch failed (${resp.status}): ${errBody}`);
+  }
+
+  return new Uint8Array(await resp.arrayBuffer());
 }
 
 /* ─── Component ─── */

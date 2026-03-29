@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Route only /api/* through Cloudflare Pages Functions. All other requests go to static assets and _redirects.",
-  "include": ["/api/*"],
-  "exclude": []
+  "description": "Route /api/* and /portal/* deep routes through Cloudflare Pages Functions. Static portal assets are excluded so the CDN serves them directly.",
+  "include": ["/api/*", "/portal/*"],
+  "exclude": ["/portal/", "/portal/index.html", "/portal/assets/*", "/portal/vite.svg"]
 }
