@@ -119,12 +119,40 @@ export function substitutePlaceholders(
   for (const [k, v] of Object.entries(values)) {
     upper[k.toUpperCase()] = v ?? '';
   }
-  const resolve = (key: string) => upper[key.toUpperCase()] ?? '';
 
-  // Replace literal {{KEY}} placeholders (case-insensitive)
-  let result = templateBody.replace(PLACEHOLDER_REGEX, (_m, key: string) => resolve(key));
-  // Also replace HTML-entity-encoded curlies (&#123;&#123;KEY&#125;&#125; etc.)
-  result = result.replace(PLACEHOLDER_ENTITY_REGEX, (_m, key: string) => resolve(key));
+  // Pass 1: Regex-based replacement for {{KEY}} placeholders
+  let result = templateBody.replace(
+    new RegExp(PLACEHOLDER_REGEX.source, 'gi'),
+    (_m, key: string) => upper[key.toUpperCase()] ?? '',
+  );
+  // Also replace HTML-entity-encoded curlies
+  result = result.replace(
+    new RegExp(PLACEHOLDER_ENTITY_REGEX.source, 'gi'),
+    (_m, key: string) => upper[key.toUpperCase()] ?? '',
+  );
+
+  // Pass 2: Explicit string replacement as fallback — handles edge cases the
+  // regex might miss (non-standard Unicode braces, zero-width chars, etc.)
+  for (const [key, val] of Object.entries(upper)) {
+    const token = `{{${key}}}`;
+    if (result.includes(token)) {
+      result = result.split(token).join(val);
+    }
+    // Also try lowercase variant
+    const tokenLower = `{{${key.toLowerCase()}}}`;
+    if (result.includes(tokenLower)) {
+      result = result.split(tokenLower).join(val);
+    }
+  }
+
+  if (typeof console !== 'undefined') {
+    const remaining = result.match(/\{\{[A-Z0-9_]+\}\}/gi);
+    if (remaining) {
+      console.warn('[LeaseGenerator] Unresolved placeholders after substitution:', remaining);
+    }
+    console.log('[LeaseGenerator] substitutePlaceholders: replaced', Object.keys(upper).length, 'keys. Body length:', result.length);
+  }
+
   return result;
 }
 
@@ -302,6 +330,13 @@ export async function generateLeasePdf(
 
   // 2. Substitute placeholders
   const filledBody = substitutePlaceholders(template.templateBody, fieldValues);
+
+  // Debug: log a snippet of the filled body so admin can verify substitution
+  if (typeof console !== 'undefined') {
+    const stripped = filledBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    console.log('[LeaseGenerator] Filled body snippet (first 300 chars):', stripped.slice(0, 300));
+    console.log('[LeaseGenerator] Field values passed:', JSON.stringify(fieldValues));
+  }
 
   // 3. Parse into layout blocks
   const blocks = parseTemplate(filledBody, template.signatureSchema);

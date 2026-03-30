@@ -16,7 +16,7 @@ import { portalDocumentService } from '../../lib/firebase/rentStatements';
 import { createAdminAlert } from '../../lib/firebase/adminAlerts';
 import { uploadFile, getFileUrl } from '../../lib/firebase/storage';
 import { useAuth } from '../../contexts';
-import { generateLeasePdf } from '../../lib/leaseGenerator';
+import { generateLeasePdf, substitutePlaceholders } from '../../lib/leaseGenerator';
 import type {
   LeaseTemplate,
   Lease,
@@ -217,6 +217,11 @@ export function GenerateLeasePage() {
     setGenSuccess(null);
 
     try {
+      // Debug: log what's being passed to PDF generation
+      console.log('[GenerateLease] Field values being used for PDF generation:', JSON.stringify(fieldValues, null, 2));
+      console.log('[GenerateLease] Template body length:', selectedTemplate.templateBody.length);
+      console.log('[GenerateLease] Template fieldSchema keys:', selectedTemplate.fieldSchema.map(f => f.key));
+
       // Generate PDF
       const { pdfBytes, fieldMap } = await generateLeasePdf(selectedTemplate, fieldValues);
 
@@ -522,6 +527,31 @@ export function GenerateLeasePage() {
             </div>
 
               <div className="generate-actions">
+                {/* Quick substitution preview — shows admin what will be in the PDF */}
+                {selectedTemplate && Object.keys(fieldValues).length > 0 && (() => {
+                  const preview = substitutePlaceholders(selectedTemplate.templateBody, fieldValues);
+                  // Extract first few text lines (strip HTML) to show what names/values look like
+                  const stripped = preview
+                    .replace(/<style[\s>][\s\S]*?<\/style>/gi, '')
+                    .replace(/<script[\s>][\s\S]*?<\/script>/gi, '')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+                    .replace(/\[\[[^\]]+\]\]/g, '[…]')  // hide anchors
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                  // Show first 500 chars
+                  const snippet = stripped.length > 500 ? stripped.slice(0, 500) + '…' : stripped;
+                  return (
+                    <details className="substitution-preview" style={{ marginBottom: 12 }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-muted, #666)' }}>
+                        Preview filled content (click to expand)
+                      </summary>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, background: 'var(--bg-surface, #f5f5f5)', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto', marginTop: 4 }}>
+                        {snippet}
+                      </pre>
+                    </details>
+                  );
+                })()}
                 <button className="btn btn-primary btn-lg" onClick={handleGenerate} disabled={generating}>
                   {generating ? <><Loader2 size={16} className="spinner" /> Generating…</> : <><FileText size={16} /> Generate Lease PDF</>}
                 </button>
