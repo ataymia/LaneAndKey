@@ -123,56 +123,71 @@ export function GenerateLeasePage() {
   // Include ALL fields — admin fills them, tenant never fills placeholders
   useEffect(() => {
     if (!selectedTemplate) return;
-    const vals: Record<string, string> = {};
+    const autoFill: Record<string, string> = {};
     const occupants = selectedLease?.occupants ?? [];
     for (const field of selectedTemplate.fieldSchema) {
       // Try to auto-fill from tenant/lease/property data
       const k = field.key;
       // Tenant names
-      if ((k === 'TENANT_FULL_NAME' || k === 'TENANT_1_NAME' || k === 'TENANT_NAME') && selectedTenant) vals[k] = selectedTenant.displayName;
-      else if (k === 'TENANT_1_EMAIL' && selectedTenant) vals[k] = selectedTenant.email;
-      else if (k === 'TENANT_1_PHONE' && selectedTenant?.phone) vals[k] = selectedTenant.phone;
+      if ((k === 'TENANT_FULL_NAME' || k === 'TENANT_1_NAME' || k === 'TENANT_NAME') && selectedTenant?.displayName) autoFill[k] = selectedTenant.displayName;
+      else if (k === 'TENANT_1_EMAIL' && selectedTenant) autoFill[k] = selectedTenant.email;
+      else if (k === 'TENANT_1_PHONE' && selectedTenant?.phone) autoFill[k] = selectedTenant.phone;
       // Additional tenants from lease occupants (index 0-based for occupants, 2-4 for tenants)
       else if (/^TENANT_[2-4]_(NAME|EMAIL|PHONE)$/.test(k)) {
         const idx = parseInt(k.charAt(7)) - 2; // TENANT_2 → occupant[0], TENANT_3 → occupant[1], etc.
         const occ = occupants[idx];
         if (occ) {
-          if (k.endsWith('_NAME')) vals[k] = occ.fullName;
-          else if (k.endsWith('_EMAIL')) vals[k] = occ.email || '';
-          else if (k.endsWith('_PHONE')) vals[k] = occ.phone || '';
-        } else vals[k] = fieldValues[k] || '';
+          if (k.endsWith('_NAME')) autoFill[k] = occ.fullName;
+          else if (k.endsWith('_EMAIL')) autoFill[k] = occ.email || '';
+          else if (k.endsWith('_PHONE')) autoFill[k] = occ.phone || '';
+        }
+        // If no occupant data, don't set anything — preserve user input
       }
       // Occupant aliases (OCCUPANT_1_NAME = primary tenant, OCCUPANT_2_NAME = first occupant, etc.)
       else if (/^OCCUPANT_\d+_/.test(k)) {
         const idx = parseInt(k.split('_')[1]) - 1;
-        if (idx === 0 && selectedTenant) {
-          if (k.endsWith('_NAME')) vals[k] = selectedTenant.displayName;
-          else if (k.endsWith('_EMAIL')) vals[k] = selectedTenant.email;
-          else if (k.endsWith('_PHONE')) vals[k] = selectedTenant.phone || '';
+        if (idx === 0 && selectedTenant?.displayName) {
+          if (k.endsWith('_NAME')) autoFill[k] = selectedTenant.displayName;
+          else if (k.endsWith('_EMAIL')) autoFill[k] = selectedTenant.email;
+          else if (k.endsWith('_PHONE')) autoFill[k] = selectedTenant.phone || '';
         } else {
           const occ = occupants[idx - 1]; // OCCUPANT_2 → occupants[0]
           if (occ) {
-            if (k.endsWith('_NAME')) vals[k] = occ.fullName;
-            else if (k.endsWith('_EMAIL')) vals[k] = occ.email || '';
-            else if (k.endsWith('_PHONE')) vals[k] = occ.phone || '';
-          } else vals[k] = fieldValues[k] || '';
+            if (k.endsWith('_NAME')) autoFill[k] = occ.fullName;
+            else if (k.endsWith('_EMAIL')) autoFill[k] = occ.email || '';
+            else if (k.endsWith('_PHONE')) autoFill[k] = occ.phone || '';
+          }
         }
       }
       // Property
-      else if (k === 'PROPERTY_ADDRESS' && selectedProperty) vals[k] = `${selectedProperty.address}${selectedProperty.unit ? ` #${selectedProperty.unit}` : ''}, ${selectedProperty.city}, ${selectedProperty.state} ${selectedProperty.zip}`;
-      else if (k === 'PROPERTY_CITY' && selectedProperty) vals[k] = selectedProperty.city;
-      else if (k === 'PROPERTY_STATE' && selectedProperty) vals[k] = selectedProperty.state;
-      else if (k === 'PROPERTY_ZIP' && selectedProperty) vals[k] = selectedProperty.zip;
+      else if (k === 'PROPERTY_ADDRESS' && selectedProperty) autoFill[k] = `${selectedProperty.address}${selectedProperty.unit ? ` #${selectedProperty.unit}` : ''}, ${selectedProperty.city}, ${selectedProperty.state} ${selectedProperty.zip}`;
+      else if (k === 'PROPERTY_CITY' && selectedProperty) autoFill[k] = selectedProperty.city;
+      else if (k === 'PROPERTY_STATE' && selectedProperty) autoFill[k] = selectedProperty.state;
+      else if (k === 'PROPERTY_ZIP' && selectedProperty) autoFill[k] = selectedProperty.zip;
       // Lease dates + money
-      else if ((k === 'LEASE_START_DATE' || k === 'START_DATE') && selectedLease) vals[k] = new Date(selectedLease.startDate).toLocaleDateString('en-US');
-      else if ((k === 'LEASE_END_DATE' || k === 'END_DATE') && selectedLease?.endDate) vals[k] = new Date(selectedLease.endDate).toLocaleDateString('en-US');
-      else if ((k === 'RENT_AMOUNT' || k === 'MONTHLY_RENT') && selectedLease) vals[k] = `$${selectedLease.monthlyRent.toLocaleString()}`;
-      else if ((k === 'DEPOSIT_AMOUNT' || k === 'SECURITY_DEPOSIT') && selectedLease) vals[k] = `$${selectedLease.securityDeposit.toLocaleString()}`;
-      else if (k === 'OCCUPANTS' && occupants.length) vals[k] = [selectedTenant?.displayName, ...occupants.map(o => o.fullName)].filter(Boolean).join(', ');
-      else if (field.default) vals[k] = field.default;
-      else vals[k] = fieldValues[k] || '';
+      else if ((k === 'LEASE_START_DATE' || k === 'START_DATE') && selectedLease) autoFill[k] = new Date(selectedLease.startDate).toLocaleDateString('en-US');
+      else if ((k === 'LEASE_END_DATE' || k === 'END_DATE') && selectedLease?.endDate) autoFill[k] = new Date(selectedLease.endDate).toLocaleDateString('en-US');
+      else if ((k === 'RENT_AMOUNT' || k === 'MONTHLY_RENT') && selectedLease) autoFill[k] = `$${selectedLease.monthlyRent.toLocaleString()}`;
+      else if ((k === 'DEPOSIT_AMOUNT' || k === 'SECURITY_DEPOSIT') && selectedLease) autoFill[k] = `$${selectedLease.securityDeposit.toLocaleString()}`;
+      // OCCUPANTS: always include primary tenant, plus any additional occupants
+      else if (k === 'OCCUPANTS' && selectedTenant?.displayName) autoFill[k] = [selectedTenant.displayName, ...occupants.map(o => o.fullName)].filter(Boolean).join(', ');
+      else if (field.default) autoFill[k] = field.default;
+      // If no auto-fill value, don't set anything — preserve user input
     }
-    setFieldValues(vals);
+    // Merge: auto-fill values take priority, but never overwrite user input with empty string.
+    // This prevents async data loads from wiping manually-entered values.
+    setFieldValues(prev => {
+      const merged: Record<string, string> = {};
+      // Start with all keys the template expects (ensures new fields appear)
+      for (const field of selectedTemplate.fieldSchema) {
+        merged[field.key] = prev[field.key] || '';
+      }
+      // Apply auto-fill on top — only non-empty auto-fill values overwrite
+      for (const [k, v] of Object.entries(autoFill)) {
+        if (v) merged[k] = v;
+      }
+      return merged;
+    });
   // We intentionally only re-run when these IDs change, not on every fieldValues change
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTemplateId, selectedTenantUid, selectedLeaseId, selectedTemplate, selectedTenant, selectedLease, selectedProperty]);

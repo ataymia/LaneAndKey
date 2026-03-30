@@ -46,7 +46,9 @@ const TEXT_BOX_HEIGHT = 24;
 
 /* ─── Anchor regex ─── */
 const ANCHOR_REGEX = /\[\[(SIGNATURE|DATE|INITIAL|CHECK|TEXT):([^\]]+)\]\]/g;
-const PLACEHOLDER_REGEX = /\{\{([A-Z0-9_]+)\}\}/g;
+const PLACEHOLDER_REGEX = /\{\{([A-Z0-9_]+)\}\}/gi;
+// Also match HTML-entity-encoded curlies: &#123;&#123;KEY&#125;&#125; or &lbrace;&lbrace;KEY&rbrace;&rbrace;
+const PLACEHOLDER_ENTITY_REGEX = /(?:&#123;|&lbrace;){2}([A-Z0-9_]+)(?:&#125;|&rbrace;){2}/gi;
 
 /**
  * Sanitize text to only contain characters encodable in WinAnsi (Windows-1252).
@@ -112,11 +114,18 @@ export function substitutePlaceholders(
   templateBody: string,
   values: Record<string, string>,
 ): string {
-  return templateBody.replace(PLACEHOLDER_REGEX, (_match, key: string) => {
-    // If the value is present, use it; otherwise replace with empty string
-    // so that no raw {{PLACEHOLDER}} text appears in the output.
-    return values[key] !== undefined ? values[key] : '';
-  });
+  // Build a case-insensitive lookup so {{tenant_full_name}} still matches TENANT_FULL_NAME
+  const upper: Record<string, string> = {};
+  for (const [k, v] of Object.entries(values)) {
+    upper[k.toUpperCase()] = v ?? '';
+  }
+  const resolve = (key: string) => upper[key.toUpperCase()] ?? '';
+
+  // Replace literal {{KEY}} placeholders (case-insensitive)
+  let result = templateBody.replace(PLACEHOLDER_REGEX, (_m, key: string) => resolve(key));
+  // Also replace HTML-entity-encoded curlies (&#123;&#123;KEY&#125;&#125; etc.)
+  result = result.replace(PLACEHOLDER_ENTITY_REGEX, (_m, key: string) => resolve(key));
+  return result;
 }
 
 /* ─── Validate anchors ─── */
@@ -544,9 +553,14 @@ export async function embedSignatureImage(
 export function extractPlaceholders(body: string): string[] {
   const found = new Set<string>();
   let match: RegExpExecArray | null;
-  const regex = new RegExp(PLACEHOLDER_REGEX.source, 'g');
+  const regex = new RegExp(PLACEHOLDER_REGEX.source, 'gi');
   while ((match = regex.exec(body))) {
-    found.add(match[1]);
+    found.add(match[1].toUpperCase());
+  }
+  // Also check for HTML-entity-encoded placeholders
+  const entityRegex = new RegExp(PLACEHOLDER_ENTITY_REGEX.source, 'gi');
+  while ((match = entityRegex.exec(body))) {
+    found.add(match[1].toUpperCase());
   }
   return Array.from(found);
 }
