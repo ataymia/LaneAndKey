@@ -106,17 +106,6 @@ export function TenantLeaseSignPage() {
   const completedCount = requiredTenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
   const allFieldsDone = requiredTenantFields.length > 0 && completedCount === requiredTenantFields.length;
 
-  // Next / prev incomplete for DocuSign-style navigation
-  const nextIncompleteIndex = tenantFields.findIndex(
-    (f, i) => i > currentFieldIndex && !fieldCompletions[f.fieldId]?.value
-  );
-  const prevIncompleteIndex = (() => {
-    for (let i = currentFieldIndex - 1; i >= 0; i--) {
-      if (!fieldCompletions[tenantFields[i]?.fieldId]?.value) return i;
-    }
-    return -1;
-  })();
-
   /* ─── Load lease document ─── */
   useEffect(() => {
     async function load() {
@@ -205,9 +194,13 @@ export function TenantLeaseSignPage() {
           userProfile?.displayName || 'Tenant',
         );
         if (cancelled) return;
-        if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+        // Revoke old blob URL to avoid memory leak
+        if (previewPdfUrl) {
+          try { URL.revokeObjectURL(previewPdfUrl); } catch (_) { /* ignore */ }
+        }
         const blob = new Blob([updatedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-        setPreviewPdfUrl(URL.createObjectURL(blob));
+        const newUrl = URL.createObjectURL(blob);
+        setPreviewPdfUrl(newUrl);
       } catch (err) {
         console.error('Failed to rebuild PDF preview:', err);
       }
@@ -588,7 +581,12 @@ export function TenantLeaseSignPage() {
 
                 {(previewPdfUrl || pdfUrl) && (
                   <div className="pdf-preview">
-                    <iframe key={previewPdfUrl || pdfUrl} src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
+                    <iframe
+                      key={previewPdfUrl || pdfUrl}
+                      src={(previewPdfUrl || pdfUrl!) + '#toolbar=1&navpanes=0'}
+                      title="Lease Preview"
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                    />
                   </div>
                 )}
 
@@ -677,18 +675,34 @@ export function TenantLeaseSignPage() {
                 <div className="ds-nav-buttons">
                   <button
                     className="btn btn-outline btn-sm"
-                    disabled={prevIncompleteIndex < 0}
-                    onClick={() => { if (prevIncompleteIndex >= 0) setCurrentFieldIndex(prevIncompleteIndex); }}
+                    disabled={currentFieldIndex <= 0}
+                    onClick={() => {
+                      const prevIdx = currentFieldIndex - 1;
+                      if (prevIdx >= 0) {
+                        setCurrentFieldIndex(prevIdx);
+                        const f = tenantFields[prevIdx];
+                        if (f && !fieldCompletions[f.fieldId]?.value) {
+                          handleFieldClick(f.fieldId);
+                        }
+                      }
+                    }}
                   >
                     <ChevronLeft size={16} /> Prev
                   </button>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>
+                    {currentFieldIndex + 1} / {tenantFields.length}
+                  </span>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={nextIncompleteIndex < 0}
+                    disabled={currentFieldIndex >= tenantFields.length - 1}
                     onClick={() => {
-                      if (nextIncompleteIndex >= 0) {
-                        setCurrentFieldIndex(nextIncompleteIndex);
-                        handleFieldClick(tenantFields[nextIncompleteIndex].fieldId);
+                      const nextIdx = currentFieldIndex + 1;
+                      if (nextIdx < tenantFields.length) {
+                        setCurrentFieldIndex(nextIdx);
+                        const f = tenantFields[nextIdx];
+                        if (f && !fieldCompletions[f.fieldId]?.value) {
+                          handleFieldClick(f.fieldId);
+                        }
                       }
                     }}
                   >

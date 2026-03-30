@@ -42,6 +42,54 @@ const SIGNING_BADGE: Record<LeaseSigningStatus, { cls: string; label: string }> 
   voided: { cls: 'badge-gray', label: 'Voided' },
 };
 
+/* ─── Filled Content Preview ─── */
+function FilledContentPreview({ templateBody, fieldValues }: { templateBody: string; fieldValues: Record<string, string> }) {
+  const filled = useMemo(() => {
+    if (!templateBody) return '';
+    return substitutePlaceholders(templateBody, fieldValues);
+  }, [templateBody, fieldValues]);
+
+  const previewText = useMemo(() => {
+    if (!filled) return '';
+    return filled
+      .replace(/<style[\s>][\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s>][\s\S]*?<\/script>/gi, '')
+      .replace(/<head[\s>][\s\S]*?<\/head>/gi, '')
+      .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n$1\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+      .replace(/\[\[[^\]]+\]\]/g, '[signature/date field]')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }, [filled]);
+
+  // Check for unresolved placeholders
+  const unresolved = useMemo(() => {
+    if (!filled) return [];
+    const matches = filled.match(/\{\{[A-Z0-9_]+\}\}/gi);
+    return matches || [];
+  }, [filled]);
+
+  if (!previewText) {
+    return <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No template content to preview.</p>;
+  }
+
+  return (
+    <div>
+      {unresolved.length > 0 && (
+        <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 4, padding: '6px 10px', marginBottom: 8, fontSize: 12 }}>
+          <strong>Warning:</strong> {unresolved.length} unresolved placeholder(s): {unresolved.join(', ')}
+        </div>
+      )}
+      <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, background: '#fff', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 4, padding: 12, maxHeight: 300, overflow: 'auto', fontFamily: 'system-ui, sans-serif' }}>
+        {previewText}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Component ─── */
 export function GenerateLeasePage() {
   const { user: adminUser } = useAuth();
@@ -217,13 +265,12 @@ export function GenerateLeasePage() {
     setGenSuccess(null);
 
     try {
-      // Debug: log what's being passed to PDF generation
-      console.log('[GenerateLease] Field values being used for PDF generation:', JSON.stringify(fieldValues, null, 2));
-      console.log('[GenerateLease] Template body length:', selectedTemplate.templateBody.length);
-      console.log('[GenerateLease] Template fieldSchema keys:', selectedTemplate.fieldSchema.map(f => f.key));
+      // Capture current field values — these are what go into the PDF
+      const valuesToUse = { ...fieldValues };
+      console.log('[GenerateLease] Generating PDF with field values:', valuesToUse);
 
       // Generate PDF
-      const { pdfBytes, fieldMap } = await generateLeasePdf(selectedTemplate, fieldValues);
+      const { pdfBytes, fieldMap } = await generateLeasePdf(selectedTemplate, valuesToUse);
 
       // Upload original to Storage
       const storagePath = `generated-leases/${selectedLeaseId}/original_${Date.now()}.pdf`;
@@ -239,7 +286,7 @@ export function GenerateLeasePage() {
         propertyId: selectedLease.propertyId,
         generatedByUid: adminUser!.uid,
         generatedAt: new Date(),
-        fieldValues,
+        fieldValues: valuesToUse,
         signingStatus: 'generated',
         signatureFields: fieldMap,
         pdfOriginalPath: storagePath,
@@ -460,6 +507,7 @@ export function GenerateLeasePage() {
                   <div key={f.key} className="form-group">
                     <label className="form-label">
                       {f.label} {isRequired && <span className="required">*</span>}
+                      {isOptionalTenant && <span style={{ fontWeight: 'normal', color: '#6b7280', fontSize: 12, marginLeft: 4 }}>(optional)</span>}
                       <span className="field-key-hint">{`{{${f.key}}}`}</span>
                     </label>
                     {f.type === 'boolean' ? (
@@ -526,32 +574,14 @@ export function GenerateLeasePage() {
               })()}
             </div>
 
+              {/* Live preview of filled content — always visible */}
+              <div className="form-section" style={{ background: 'var(--bg-surface, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 8, padding: 16 }}>
+                <h3 style={{ marginTop: 0 }}>4. Preview Filled Content</h3>
+                <p className="form-hint" style={{ marginBottom: 8 }}>Verify the names and values below appear correctly before generating.</p>
+                <FilledContentPreview templateBody={selectedTemplate.templateBody} fieldValues={fieldValues} />
+              </div>
+
               <div className="generate-actions">
-                {/* Quick substitution preview — shows admin what will be in the PDF */}
-                {selectedTemplate && Object.keys(fieldValues).length > 0 && (() => {
-                  const preview = substitutePlaceholders(selectedTemplate.templateBody, fieldValues);
-                  // Extract first few text lines (strip HTML) to show what names/values look like
-                  const stripped = preview
-                    .replace(/<style[\s>][\s\S]*?<\/style>/gi, '')
-                    .replace(/<script[\s>][\s\S]*?<\/script>/gi, '')
-                    .replace(/<[^>]+>/g, ' ')
-                    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-                    .replace(/\[\[[^\]]+\]\]/g, '[…]')  // hide anchors
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                  // Show first 500 chars
-                  const snippet = stripped.length > 500 ? stripped.slice(0, 500) + '…' : stripped;
-                  return (
-                    <details className="substitution-preview" style={{ marginBottom: 12 }}>
-                      <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-muted, #666)' }}>
-                        Preview filled content (click to expand)
-                      </summary>
-                      <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, background: 'var(--bg-surface, #f5f5f5)', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto', marginTop: 4 }}>
-                        {snippet}
-                      </pre>
-                    </details>
-                  );
-                })()}
                 <button className="btn btn-primary btn-lg" onClick={handleGenerate} disabled={generating}>
                   {generating ? <><Loader2 size={16} className="spinner" /> Generating…</> : <><FileText size={16} /> Generate Lease PDF</>}
                 </button>

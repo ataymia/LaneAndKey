@@ -150,7 +150,6 @@ export function substitutePlaceholders(
     if (remaining) {
       console.warn('[LeaseGenerator] Unresolved placeholders after substitution:', remaining);
     }
-    console.log('[LeaseGenerator] substitutePlaceholders: replaced', Object.keys(upper).length, 'keys. Body length:', result.length);
   }
 
   return result;
@@ -331,11 +330,10 @@ export async function generateLeasePdf(
   // 2. Substitute placeholders
   const filledBody = substitutePlaceholders(template.templateBody, fieldValues);
 
-  // Debug: log a snippet of the filled body so admin can verify substitution
-  if (typeof console !== 'undefined') {
-    const stripped = filledBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    console.log('[LeaseGenerator] Filled body snippet (first 300 chars):', stripped.slice(0, 300));
-    console.log('[LeaseGenerator] Field values passed:', JSON.stringify(fieldValues));
+  // Warn if any placeholders remain unresolved
+  const leftover = filledBody.match(/\{\{[A-Z0-9_]+\}\}/gi);
+  if (leftover) {
+    console.warn('[LeaseGenerator] Unresolved placeholders in PDF:', leftover);
   }
 
   // 3. Parse into layout blocks
