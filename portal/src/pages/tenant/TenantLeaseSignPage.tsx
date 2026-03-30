@@ -100,7 +100,9 @@ export function TenantLeaseSignPage() {
     if (f.phase === 'move_in_inspection') return false;
     return true;
   });
-  const requiredTenantFields = tenantFields.filter((f) => f.required !== false);
+  // Tenant 2-4 fields are always optional regardless of saved required flag
+  const isOptionalField = (f: LeaseSignatureFieldValue) => /tenant_?[2-4]/i.test(f.fieldId) || /tenant_?[2-4]/i.test(f.displayLabel);
+  const requiredTenantFields = tenantFields.filter((f) => f.required !== false && !isOptionalField(f));
   const completedCount = requiredTenantFields.filter((f) => fieldCompletions[f.fieldId]?.value).length;
   const allFieldsDone = requiredTenantFields.length > 0 && completedCount === requiredTenantFields.length;
 
@@ -586,7 +588,7 @@ export function TenantLeaseSignPage() {
 
                 {(previewPdfUrl || pdfUrl) && (
                   <div className="pdf-preview">
-                    <iframe src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
+                    <iframe key={previewPdfUrl || pdfUrl} src={previewPdfUrl || pdfUrl!} title="Lease Preview" />
                   </div>
                 )}
 
@@ -619,6 +621,7 @@ export function TenantLeaseSignPage() {
                     const comp = fieldCompletions[f.fieldId];
                     const isDone = !!comp?.value;
                     const isCurrent = i === currentFieldIndex;
+                    const optional = isOptionalField(f);
                     return (
                       <div
                         key={f.fieldId}
@@ -640,7 +643,7 @@ export function TenantLeaseSignPage() {
                           )}
                         </div>
                         <div className="ds-field-info">
-                          <span className="ds-field-label">{f.displayLabel || f.fieldId}</span>
+                          <span className="ds-field-label">{f.displayLabel || f.fieldId}{optional && <span style={{ fontWeight: 'normal', color: '#6b7280', marginLeft: 4 }}>(optional)</span>}</span>
                           <span className="ds-field-hint">
                             {isDone
                               ? f.type === 'signature' ? '✓ Signed' : `✓ ${comp?.value}`

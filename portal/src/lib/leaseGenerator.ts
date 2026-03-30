@@ -587,17 +587,18 @@ function inferOwnerAndPhase(type: string, detail: string): { ownerRole: FieldOwn
   if (lowerDetail.startsWith('move_in') || lowerDetail.startsWith('inspection') || lowerDetail.includes('inspection')) {
     return { ownerRole: 'tenant', phase: 'move_in_inspection', required: false };
   }
+  // Tenant 2-4 signing fields are optional (there may not be that many tenants)
+  const isOptionalTenant = /tenant_?[2-4]/i.test(detail);
   // Signing anchors: signature, date (for signing), initial
   if (type === 'SIGNATURE' || type === 'INITIAL') {
-    return { ownerRole: 'tenant', phase: 'signing', required: true };
+    return { ownerRole: 'tenant', phase: 'signing', required: !isOptionalTenant };
   }
   if (type === 'DATE') {
-    return { ownerRole: 'tenant', phase: 'signing', required: true };
+    return { ownerRole: 'tenant', phase: 'signing', required: !isOptionalTenant };
   }
-  return { ownerRole: 'tenant', phase: 'any', required: true };
+  return { ownerRole: 'tenant', phase: 'any', required: !isOptionalTenant };
 }
 
-/* ─── Build signatureSchema from anchor list ─── */
 export function buildSignatureSchemaFromAnchors(
   anchors: Array<{ type: string; detail: string; full: string }>,
 ): SignatureFieldDef[] {

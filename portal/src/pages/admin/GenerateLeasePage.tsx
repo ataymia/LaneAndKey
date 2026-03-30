@@ -188,9 +188,10 @@ export function GenerateLeasePage() {
       return;
     }
 
-    // Check required fields
+    // Check required fields (TENANT_2-4 fields are always optional)
     for (const f of selectedTemplate.fieldSchema) {
-      if (f.required && !fieldValues[f.key]?.trim()) {
+      const isOptionalTenant = /^TENANT_[2-4]/.test(f.key) || /^OCCUPANT_[2-9]/.test(f.key);
+      if (f.required && !isOptionalTenant && !fieldValues[f.key]?.trim()) {
         setGenError(`Required field "${f.label}" is empty.`);
         return;
       }
@@ -432,10 +433,13 @@ export function GenerateLeasePage() {
               <h3>3. Fill Lease Variables</h3>
               <p className="form-hint">Auto-filled from lease data. Review and adjust as needed.</p>
               <div className="variable-grid">
-                {selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin').map(f => (
+                {selectedTemplate.fieldSchema.filter(f => !f.ownerRole || f.ownerRole === 'admin').map(f => {
+                  const isOptionalTenant = /^TENANT_[2-4]/.test(f.key) || /^OCCUPANT_[2-9]/.test(f.key);
+                  const isRequired = f.required && !isOptionalTenant;
+                  return (
                   <div key={f.key} className="form-group">
                     <label className="form-label">
-                      {f.label} {f.required && <span className="required">*</span>}
+                      {f.label} {isRequired && <span className="required">*</span>}
                       <span className="field-key-hint">{`{{${f.key}}}`}</span>
                     </label>
                     {f.type === 'boolean' ? (
@@ -460,7 +464,8 @@ export function GenerateLeasePage() {
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Signature fields preview (signing phase only) */}
