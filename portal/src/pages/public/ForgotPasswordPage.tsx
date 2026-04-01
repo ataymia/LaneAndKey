@@ -17,6 +17,7 @@ export function ForgotPasswordPage() {
   // Profile data fetched after email step
   const [profilePhone, setProfilePhone] = useState('');
   const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswerStored, setSecurityAnswerStored] = useState('');
   const [hasSecurityQuestion, setHasSecurityQuestion] = useState(false);
 
   const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
@@ -26,24 +27,35 @@ export function ForgotPasswordPage() {
     setError('');
     setLoading(true);
     try {
-      const profile = await getUserProfileByEmail(email.trim());
-      if (!profile) {
-        setError('No account found with that email address.');
-        return;
+      // Try to look up the profile for phone/security question verification.
+      // This may fail if Firestore rules block unauthenticated reads — that's OK,
+      // we fall through to sending the reset email directly.
+      let profile: Awaited<ReturnType<typeof getUserProfileByEmail>> | null = null;
+      try {
+        profile = await getUserProfileByEmail(email.trim());
+      } catch {
+        // Firestore permission denied for unauthenticated users — skip verification steps
       }
-      setProfilePhone(profile.phone || '');
-      setSecurityQuestion(profile.securityQuestion || '');
-      setHasSecurityQuestion(!!profile.securityQuestion && !!profile.securityAnswer);
 
-      if (profile.phone) {
-        setStep('verify');
-      } else if (profile.securityQuestion && profile.securityAnswer) {
-        setStep('security');
-      } else {
-        // No phone or security question on file — send reset directly
-        await resetPassword(email.trim());
-        setStep('sent');
+      if (profile) {
+        setProfilePhone(profile.phone || '');
+        setSecurityQuestion(profile.securityQuestion || '');
+        setSecurityAnswerStored((profile.securityAnswer || '').toLowerCase().trim());
+        setHasSecurityQuestion(!!profile.securityQuestion && !!profile.securityAnswer);
+
+        if (profile.phone) {
+          setStep('verify');
+          return;
+        } else if (profile.securityQuestion && profile.securityAnswer) {
+          setStep('security');
+          return;
+        }
       }
+
+      // No profile found, no phone, no security question, or Firestore blocked —
+      // send the reset email directly. Firebase won't reveal if the email exists.
+      await resetPassword(email.trim());
+      setStep('sent');
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -92,15 +104,12 @@ export function ForgotPasswordPage() {
     setError('');
     setLoading(true);
     try {
-      // Re-fetch profile to get the stored answer
-      const profile = await getUserProfileByEmail(email.trim());
-      if (!profile?.securityAnswer) {
+      if (!securityAnswerStored) {
         setError('Security question not configured properly. Contact your property manager.');
         return;
       }
-      const storedAnswer = profile.securityAnswer.toLowerCase().trim();
       const userAnswer = securityAnswerInput.toLowerCase().trim();
-      if (storedAnswer !== userAnswer) {
+      if (securityAnswerStored !== userAnswer) {
         setError('Incorrect answer. Please try again.');
         return;
       }
