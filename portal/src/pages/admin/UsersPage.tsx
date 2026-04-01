@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, query, orderBy, where, limit as fbLimit } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { adminCreateUser } from '../../lib/firebase/auth';
+import { adminSendPasswordReset } from '../../lib/firebase/auth';
 import { alertService } from '../../lib/firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserProfile, UserRole, Payment, MaintenanceTicket } from '../../types';
@@ -27,6 +28,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  KeyRound,
 } from 'lucide-react';
 import './Users.css';
 
@@ -174,6 +176,11 @@ export default function UsersPage() {
   const [noticeTarget, setNoticeTarget] = useState<UserProfile | null>(null);
   const [noticeForm, setNoticeForm] = useState({ title: '', message: '' });
   const [sendingNotice, setSendingNotice] = useState(false);
+
+  // Reset password modal
+  const [resetTarget, setResetTarget] = useState<UserProfile | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   // Expanded user detail
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
@@ -363,6 +370,21 @@ export default function UsersPage() {
       alert('Some notices failed to send.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return;
+    try {
+      setResettingPassword(true);
+      setResetMessage(null);
+      await adminSendPasswordReset(resetTarget.email);
+      setResetMessage(`Password reset email sent to ${resetTarget.email}. The user will receive a link to set a new password.`);
+    } catch (err) {
+      console.error('Error sending password reset:', err);
+      setResetMessage('Failed to send password reset email. Please try again.');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -568,6 +590,13 @@ export default function UsersPage() {
                           >
                             <Mail size={16} />
                           </button>
+                          <button
+                            className="btn-icon"
+                            title="Reset password"
+                            onClick={() => { setResetTarget(user); setResetMessage(null); }}
+                          >
+                            <KeyRound size={16} />
+                          </button>
                           <button className="btn-icon" title="View details" onClick={() => toggleExpand(user.uid)}>
                             <Eye size={16} />
                           </button>
@@ -682,6 +711,54 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== Reset Password Modal ==================== */}
+      {resetTarget && (
+        <div className="modal-overlay" onClick={() => setResetTarget(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><KeyRound size={20} /> Reset User Password</h2>
+              <button className="modal-close" onClick={() => setResetTarget(null)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <p className="notice-to">User: <strong>{resetTarget.displayName}</strong> ({resetTarget.email})</p>
+              {resetMessage ? (
+                <div style={{
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  background: resetMessage.includes('Failed') ? '#FEF2F2' : '#F0FDF4',
+                  color: resetMessage.includes('Failed') ? '#DC2626' : '#16A34A',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.5,
+                  marginBottom: '1rem',
+                }}>
+                  {resetMessage}
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.9rem', color: '#6b7280', lineHeight: 1.6, marginBottom: '1rem' }}>
+                  This will send a password reset email to <strong>{resetTarget.email}</strong>.
+                  The user will receive a link to create a new password. Let them know to check their email (including spam folder).
+                </p>
+              )}
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setResetTarget(null)}>
+                  {resetMessage ? 'Close' : 'Cancel'}
+                </button>
+                {!resetMessage && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleResetPassword}
+                    disabled={resettingPassword}
+                  >
+                    {resettingPassword ? 'Sending…' : 'Send Reset Email'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

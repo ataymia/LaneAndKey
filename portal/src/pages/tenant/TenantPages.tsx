@@ -624,7 +624,7 @@ export function TenantAlertsPage() {
 }
 
 export function TenantSettingsPage() {
-  const { userProfile, updateProfile } = useAuth();
+  const { userProfile, updateProfile, changePassword } = useAuth();
   const [phone, setPhone] = useState(userProfile?.phone || '');
   const [preferredContactMethod, setPreferredContactMethod] = useState<'email' | 'phone' | 'sms'>(
     userProfile?.preferredContactMethod || 'email'
@@ -635,12 +635,26 @@ export function TenantSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Security question
+  const [securityQuestion, setSecurityQuestion] = useState(userProfile?.securityQuestion || '');
+  const [securityAnswer, setSecurityAnswer] = useState('');
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+
+  // Change password
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+
   useEffect(() => {
     setPhone(userProfile?.phone || '');
     setPreferredContactMethod(userProfile?.preferredContactMethod || 'email');
     setEmergencyName(userProfile?.emergencyContact?.name || '');
     setEmergencyPhone(userProfile?.emergencyContact?.phone || '');
     setEmergencyRelationship(userProfile?.emergencyContact?.relationship || '');
+    setSecurityQuestion(userProfile?.securityQuestion || '');
   }, [userProfile]);
 
   const handleSave = async (event: React.FormEvent) => {
@@ -666,13 +680,79 @@ export function TenantSettingsPage() {
     }
   };
 
+  const SECURITY_QUESTIONS = [
+    'What was the name of your first pet?',
+    'What city were you born in?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first school?',
+    'What is your favorite movie?',
+    'What street did you grow up on?',
+  ];
+
+  const handleSaveSecurity = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!securityQuestion || !securityAnswer.trim()) {
+      setSecurityMessage('Please select a question and provide an answer.');
+      return;
+    }
+    try {
+      setSavingSecurity(true);
+      setSecurityMessage(null);
+      await updateProfile({
+        securityQuestion,
+        securityAnswer: securityAnswer.toLowerCase().trim(),
+      } as Partial<UserProfile>);
+      setSecurityAnswer('');
+      setSecurityMessage('Security question saved.');
+    } catch (error) {
+      console.error('Failed to save security question:', error);
+      setSecurityMessage('Failed to save. Please try again.');
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handleChangePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordMessage(null);
+    if (newPassword.length < 8) {
+      setPasswordMessage('New password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordMessage('New passwords do not match.');
+      return;
+    }
+    try {
+      setChangingPassword(true);
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setPasswordMessage('Password changed successfully.');
+    } catch (error: any) {
+      if (error?.code === 'auth/wrong-password' || error?.message?.includes('auth/wrong-password') || error?.message?.includes('invalid-credential')) {
+        setPasswordMessage('Current password is incorrect.');
+      } else if (error?.message?.includes('auth/weak-password')) {
+        setPasswordMessage('New password is too weak. Use at least 8 characters with letters and numbers.');
+      } else {
+        setPasswordMessage('Failed to change password. Please try again.');
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>Settings</h1>
-        <p>Update your contact details</p>
+        <p>Update your contact details and account security</p>
       </div>
-      <form className="card" style={{ maxWidth: 600, padding: '2rem', display: 'grid', gap: '1rem' }} onSubmit={handleSave}>
+
+      {/* Contact Settings */}
+      <form className="card" style={{ maxWidth: 600, padding: '2rem', display: 'grid', gap: '1rem', marginBottom: '1.5rem' }} onSubmit={handleSave}>
+        <h3 style={{ margin: 0 }}>Contact Information</h3>
         <label>
           Phone Number
           <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(555) 000-0000" />
@@ -697,11 +777,62 @@ export function TenantSettingsPage() {
           Relationship
           <input value={emergencyRelationship} onChange={(event) => setEmergencyRelationship(event.target.value)} />
         </label>
-
-        {message && <p>{message}</p>}
-
+        {message && <p style={{ color: message.includes('Failed') ? '#dc2626' : '#16a34a', margin: 0, fontSize: '0.875rem' }}>{message}</p>}
         <button className="btn btn-primary" type="submit" disabled={saving}>
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? 'Saving...' : 'Save Contact Info'}
+        </button>
+      </form>
+
+      {/* Security Question */}
+      <form className="card" style={{ maxWidth: 600, padding: '2rem', display: 'grid', gap: '1rem', marginBottom: '1.5rem' }} onSubmit={handleSaveSecurity}>
+        <h3 style={{ margin: 0 }}>Security Question</h3>
+        <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          {userProfile?.securityQuestion
+            ? 'Your security question is set. You can change it below.'
+            : 'Set up a security question to help recover your account if you forget your password.'}
+        </p>
+        <label>
+          Select a Question
+          <select value={securityQuestion} onChange={e => setSecurityQuestion(e.target.value)}>
+            <option value="">Choose a security question...</option>
+            {SECURITY_QUESTIONS.map(q => (
+              <option key={q} value={q}>{q}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Your Answer
+          <input
+            type="text"
+            value={securityAnswer}
+            onChange={e => setSecurityAnswer(e.target.value)}
+            placeholder="Type your answer"
+          />
+        </label>
+        {securityMessage && <p style={{ color: securityMessage.includes('Failed') ? '#dc2626' : '#16a34a', margin: 0, fontSize: '0.875rem' }}>{securityMessage}</p>}
+        <button className="btn btn-primary" type="submit" disabled={savingSecurity}>
+          {savingSecurity ? 'Saving...' : 'Save Security Question'}
+        </button>
+      </form>
+
+      {/* Change Password */}
+      <form className="card" style={{ maxWidth: 600, padding: '2rem', display: 'grid', gap: '1rem' }} onSubmit={handleChangePassword}>
+        <h3 style={{ margin: 0 }}>Change Password</h3>
+        <label>
+          Current Password
+          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+        </label>
+        <label>
+          New Password
+          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" required />
+        </label>
+        <label>
+          Confirm New Password
+          <input type="password" value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} required />
+        </label>
+        {passwordMessage && <p style={{ color: passwordMessage.includes('success') ? '#16a34a' : '#dc2626', margin: 0, fontSize: '0.875rem' }}>{passwordMessage}</p>}
+        <button className="btn btn-primary" type="submit" disabled={changingPassword}>
+          {changingPassword ? 'Changing...' : 'Change Password'}
         </button>
       </form>
     </div>

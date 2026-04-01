@@ -452,13 +452,35 @@ export function ApplicantMessagesPage() {
 
 // ─── Settings Page ───
 export function ApplicantSettingsPage() {
-  const { user } = useAuth();
+  const { user, changePassword } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [statusAlerts, setStatusAlerts] = useState(true);
+
+  // Security question
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState('');
+
+  // Change password
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  const SECURITY_QUESTIONS = [
+    'What was the name of your first pet?',
+    'What city were you born in?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first school?',
+    'What is your favorite movie?',
+    'What street did you grow up on?',
+  ];
 
   useEffect(() => { if (user) { setDisplayName(user.displayName || ''); loadPrefs(); } }, [user]);
 
@@ -468,6 +490,7 @@ export function ApplicantSettingsPage() {
       const profile = await userService.get(user.uid);
       if (profile) {
         setPhone((profile as any).phone || '');
+        setSecurityQuestion((profile as any).securityQuestion || '');
         if ((profile as any).notifications) {
           setEmailNotifications((profile as any).notifications.email !== false);
           setStatusAlerts((profile as any).notifications.statusAlerts !== false);
@@ -484,6 +507,41 @@ export function ApplicantSettingsPage() {
       setSaved(true); setTimeout(() => setSaved(false), 3000);
     } catch (err) { console.error('Failed to save settings:', err); }
     finally { setSaving(false); }
+  };
+
+  const handleSaveSecurity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !securityQuestion || !securityAnswer.trim()) {
+      setSecurityMessage('Please select a question and provide an answer.');
+      return;
+    }
+    try {
+      setSavingSecurity(true);
+      setSecurityMessage('');
+      await userService.update(user.uid, { securityQuestion, securityAnswer: securityAnswer.toLowerCase().trim() } as any);
+      setSecurityAnswer('');
+      setSecurityMessage('Security question saved.');
+    } catch (err) {
+      console.error('Failed to save security question:', err);
+      setSecurityMessage('Failed to save. Please try again.');
+    } finally { setSavingSecurity(false); }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage('');
+    if (newPassword.length < 8) { setPasswordMessage('New password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmNewPassword) { setPasswordMessage('New passwords do not match.'); return; }
+    try {
+      setChangingPassword(true);
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('');
+      setPasswordMessage('Password changed successfully.');
+    } catch (error: any) {
+      if (error?.code === 'auth/wrong-password' || error?.message?.includes('invalid-credential')) {
+        setPasswordMessage('Current password is incorrect.');
+      } else { setPasswordMessage('Failed to change password. Please try again.'); }
+    } finally { setChangingPassword(false); }
   };
 
   return (
@@ -513,10 +571,50 @@ export function ApplicantSettingsPage() {
           <input type="checkbox" checked={statusAlerts} onChange={e => setStatusAlerts(e.target.checked)} /><span>Application status alerts</span>
         </label>
       </div>
-      <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ maxWidth: 600 }}>
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ maxWidth: 600, marginBottom: '1.5rem' }}>
         <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
       </button>
-      {saved && <div style={{ color: '#16a34a', marginTop: '0.5rem', fontSize: '0.875rem' }}>Settings saved successfully!</div>}
+      {saved && <div style={{ color: '#16a34a', marginTop: '-1rem', marginBottom: '1rem', fontSize: '0.875rem' }}>Settings saved successfully!</div>}
+
+      {/* Security Question */}
+      <form className="card" style={{ maxWidth: 600, padding: '1.5rem', marginBottom: '1.25rem', display: 'grid', gap: '0.75rem' }} onSubmit={handleSaveSecurity}>
+        <h3 style={{ margin: 0 }}>Security Question</h3>
+        <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+          {securityQuestion ? 'Your security question is set. You can change it below.' : 'Set up a security question to help recover your account.'}
+        </p>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Select a Question</label>
+          <select className="form-input" value={securityQuestion} onChange={e => setSecurityQuestion(e.target.value)}>
+            <option value="">Choose a security question...</option>
+            {SECURITY_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Your Answer</label>
+          <input className="form-input" value={securityAnswer} onChange={e => setSecurityAnswer(e.target.value)} placeholder="Type your answer" />
+        </div>
+        {securityMessage && <p style={{ color: securityMessage.includes('Failed') ? '#dc2626' : '#16a34a', margin: 0, fontSize: '0.875rem' }}>{securityMessage}</p>}
+        <button className="btn btn-primary" type="submit" disabled={savingSecurity}>{savingSecurity ? 'Saving...' : 'Save Security Question'}</button>
+      </form>
+
+      {/* Change Password */}
+      <form className="card" style={{ maxWidth: 600, padding: '1.5rem', display: 'grid', gap: '0.75rem' }} onSubmit={handleChangePassword}>
+        <h3 style={{ margin: 0 }}>Change Password</h3>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Current Password</label>
+          <input className="form-input" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">New Password</label>
+          <input className="form-input" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" required />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Confirm New Password</label>
+          <input className="form-input" type="password" value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} required />
+        </div>
+        {passwordMessage && <p style={{ color: passwordMessage.includes('success') ? '#16a34a' : '#dc2626', margin: 0, fontSize: '0.875rem' }}>{passwordMessage}</p>}
+        <button className="btn btn-primary" type="submit" disabled={changingPassword}>{changingPassword ? 'Changing...' : 'Change Password'}</button>
+      </form>
     </div>
   );
 }

@@ -14,6 +14,8 @@ export interface UserProfile {
   emergencyContact?: EmergencyContact;
   emergencyContacts?: EmergencyContact[];
   notificationPreferences?: NotificationPreferences;
+  securityQuestion?: string;
+  securityAnswer?: string;
   createdAt: Date;
   updatedAt: Date;
 }

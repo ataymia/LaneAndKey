@@ -9,6 +9,7 @@ import {
   updateUserProfile,
   resetPassword as firebaseResetPassword,
   updateUserRole as firebaseUpdateUserRole,
+  changeUserPassword as firebaseChangePassword,
 } from '../lib/firebase';
 import { isFirebaseConfigured } from '../lib/firebase/config';
 import type { UserProfile, UserRole } from '../types';
@@ -87,6 +88,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   updateRole: (uid: string, role: UserRole) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -253,6 +255,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await firebaseResetPassword(email);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    if (isDemoMode) {
+      throw new Error('Password change is not available in demo mode.');
+    }
+    await firebaseChangePassword(currentPassword, newPassword);
+  };
+
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (isDemoMode) {
       if (userProfile) {
@@ -295,6 +304,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signIn,
     logOut,
     resetPassword,
+    changePassword,
     updateProfile,
     updateRole,
     refreshProfile,

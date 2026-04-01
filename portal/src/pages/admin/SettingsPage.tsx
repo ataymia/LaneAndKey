@@ -7,6 +7,7 @@ import {
   Bell,
   Palette,
   Save,
+  ShieldCheck,
 } from 'lucide-react';
 import { adminSettingsService } from '../../lib/firebase';
 import { getStripeConfig } from '../../lib/stripe';
@@ -14,7 +15,7 @@ import type { AdminSettings } from '../../types';
 import './Settings.css';
 
 export function SettingsPage() {
-  const { userProfile, updateProfile } = useAuth();
+  const { userProfile, updateProfile, changePassword } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [, setSettings] = useState<AdminSettings | null>(null);
   const [, setLoading] = useState(true);
@@ -32,6 +33,28 @@ export function SettingsPage() {
   const [dailyLateFee, setDailyLateFee] = useState(10);
   const [defaultLeaseLength, setDefaultLeaseLength] = useState(12);
 
+  // Security question
+  const [securityQuestion, setSecurityQuestion] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState('');
+
+  // Change password
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  const SECURITY_QUESTIONS = [
+    'What was the name of your first pet?',
+    'What city were you born in?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first school?',
+    'What is your favorite movie?',
+    'What street did you grow up on?',
+  ];
+
   const stripeConfig = getStripeConfig();
 
   useEffect(() => {
@@ -42,6 +65,7 @@ export function SettingsPage() {
     if (userProfile) {
       setDisplayName(userProfile.displayName || '');
       setPhone(userProfile.phone || '');
+      setSecurityQuestion(userProfile.securityQuestion || '');
     }
   }, [userProfile]);
 
@@ -105,8 +129,46 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveSecurity = async () => {
+    if (!securityQuestion || !securityAnswer.trim()) {
+      setSecurityMessage('Please select a question and provide an answer.');
+      return;
+    }
+    try {
+      setSavingSecurity(true);
+      setSecurityMessage('');
+      await updateProfile({ securityQuestion, securityAnswer: securityAnswer.toLowerCase().trim() });
+      setSecurityAnswer('');
+      setSecurityMessage('Security question saved.');
+      setTimeout(() => setSecurityMessage(''), 3000);
+    } catch (error) {
+      console.error('Error saving security question:', error);
+      setSecurityMessage('Failed to save. Please try again.');
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordMessage('');
+    if (newPassword.length < 8) { setPasswordMessage('New password must be at least 8 characters.'); return; }
+    if (newPassword !== confirmNewPassword) { setPasswordMessage('Passwords do not match.'); return; }
+    try {
+      setChangingPassword(true);
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('');
+      setPasswordMessage('Password changed successfully.');
+      setTimeout(() => setPasswordMessage(''), 3000);
+    } catch (error: any) {
+      if (error?.code === 'auth/wrong-password' || error?.message?.includes('invalid-credential')) {
+        setPasswordMessage('Current password is incorrect.');
+      } else { setPasswordMessage('Failed to change password. Please try again.'); }
+    } finally { setChangingPassword(false); }
+  };
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: <User size={18} /> },
+    { id: 'security', label: 'Security', icon: <ShieldCheck size={18} /> },
     { id: 'company', label: 'Company', icon: <Building size={18} /> },
     { id: 'payments', label: 'Payments', icon: <CreditCard size={18} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
@@ -184,6 +246,81 @@ export function SettingsPage() {
               <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>
                 <Save size={18} />
                 {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          )}
+
+          {/* Security Tab */}
+          {activeTab === 'security' && (
+            <div className="settings-section">
+              <h2>Security Question</h2>
+              <p className="section-description">
+                {userProfile?.securityQuestion
+                  ? 'Your security question is set. You can change it below.'
+                  : 'Set up a security question to help recover your account if you forget your password.'}
+              </p>
+
+              <div className="form-group">
+                <label className="form-label">Select a Question</label>
+                <select
+                  className="form-input"
+                  value={securityQuestion}
+                  onChange={e => setSecurityQuestion(e.target.value)}
+                >
+                  <option value="">Choose a security question...</option>
+                  {SECURITY_QUESTIONS.map(q => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Your Answer</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={securityAnswer}
+                  onChange={e => setSecurityAnswer(e.target.value)}
+                  placeholder="Type your answer"
+                />
+              </div>
+
+              {securityMessage && (
+                <div className={`settings-message ${securityMessage.includes('Failed') ? 'error' : 'success'}`}>
+                  {securityMessage}
+                </div>
+              )}
+
+              <button className="btn btn-primary" onClick={handleSaveSecurity} disabled={savingSecurity} style={{ marginBottom: '2.5rem' }}>
+                <Save size={18} />
+                {savingSecurity ? 'Saving...' : 'Save Security Question'}
+              </button>
+
+              <h2>Change Password</h2>
+              <p className="section-description">Update your account password</p>
+
+              <div className="form-group">
+                <label className="form-label">Current Password</label>
+                <input type="password" className="form-input" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input type="password" className="form-input" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm New Password</label>
+                <input type="password" className="form-input" value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} />
+              </div>
+
+              {passwordMessage && (
+                <div className={`settings-message ${passwordMessage.includes('success') ? 'success' : 'error'}`}>
+                  {passwordMessage}
+                </div>
+              )}
+
+              <button className="btn btn-primary" onClick={handleChangePassword} disabled={changingPassword}>
+                <Save size={18} />
+                {changingPassword ? 'Changing...' : 'Change Password'}
               </button>
             </div>
           )}

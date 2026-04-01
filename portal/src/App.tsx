@@ -5,7 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminLayout, TenantLayout, ApplicantLayout } from './components/layout';
 
 // Public pages
-import { LoginPage, SignupPage } from './pages/public';
+import { LoginPage, SignupPage, ForgotPasswordPage } from './pages/public';
 
 // Admin pages
 import {
@@ -88,6 +88,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           
           {/* Home redirect */}
           <Route path="/" element={<HomeRedirect />} />

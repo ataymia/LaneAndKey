@@ -5,9 +5,12 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   type User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './config';
 import type { UserProfile, UserRole } from '../../types';
 
@@ -293,4 +296,35 @@ export async function adminCreateUser(
   });
 
   return uid;
+}
+
+// Look up a user profile by email (for forgot password verification)
+export async function getUserProfileByEmail(email: string): Promise<UserProfile | null> {
+  if (!isFirebaseConfigured) return null;
+  const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const data = snap.docs[0].data();
+  const toDate = (v: unknown): Date => {
+    if (v && typeof (v as any).toDate === 'function') return (v as any).toDate();
+    if (typeof v === 'string' || typeof v === 'number') return new Date(v);
+    return new Date();
+  };
+  return { ...data, createdAt: toDate(data.createdAt), updatedAt: toDate(data.updatedAt) } as UserProfile;
+}
+
+// Change current user's password (requires re-authentication)
+export async function changeUserPassword(currentPassword: string, newPassword: string): Promise<void> {
+  if (!isFirebaseConfigured) throw new Error('Firebase is not configured.');
+  const user = auth.currentUser;
+  if (!user || !user.email) throw new Error('No user logged in.');
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
+}
+
+// Admin: send password reset email for a user
+export async function adminSendPasswordReset(email: string): Promise<void> {
+  if (!isFirebaseConfigured) throw new Error('Firebase is not configured.');
+  await sendPasswordResetEmail(auth, email);
 }
